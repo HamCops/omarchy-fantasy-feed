@@ -63,5 +63,74 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn("_refreshFailed = false", self.source)
 
 
+class FeedUiContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.bar = (ROOT / "BarWidget.qml").read_text(encoding="utf-8")
+        cls.panel = (ROOT / "FeedPanel.qml").read_text(encoding="utf-8")
+
+    def test_bar_forwards_the_complete_popout_shape(self):
+        self.assertIn('source: Qt.resolvedUrl("FeedPanel.qml")', self.bar)
+        self.assertRegex(self.bar, r"readonly property bool opened\b")
+        self.assertRegex(self.bar, r"readonly property bool popoutSwitchClosing\b")
+        for method_name in ("open", "close", "toggle", "closeForPopoutSwitch"):
+            self.assertRegex(self.bar, rf"function {method_name}\(\)")
+
+    def test_bar_uses_only_the_shared_service_and_adapts_to_orientation(self):
+        self.assertIn('bar.shell.serviceFor("tdh.fantasy-feed")', self.bar)
+        self.assertNotIn("firstPartyServiceFor", self.bar)
+        self.assertIn("if (root.vertical) return glyph", self.bar)
+        self.assertIn("points.ppr", self.bar)
+        self.assertIn("points.standard", self.bar)
+        self.assertIn("buttonCode === Qt.MiddleButton", self.bar)
+        self.assertIn("root.feedService.refresh()", self.bar)
+        self.assertNotRegex(self.bar, r"(?m)^\s*(Process|Timer)\s*\{")
+
+    def test_panel_is_a_presentation_only_keyboard_panel(self):
+        self.assertRegex(self.panel, r"(?m)^Panel \{")
+        self.assertIn("manageIpc: false", self.panel)
+        self.assertIn("KeyboardPanel {", self.panel)
+        self.assertIn("PanelKeyCatcher {", self.panel)
+        self.assertIn("ListView {", self.panel)
+        self.assertIn('bar.shell.serviceFor("tdh.fantasy-feed")', self.panel)
+        self.assertNotRegex(self.panel, r"(?m)^\s*(Process|Timer)\s*\{")
+        self.assertNotIn("Quickshell.Io", self.panel)
+
+    def test_panel_renders_the_normalized_scoring_contract(self):
+        for field in (
+            "away",
+            "home",
+            "quarter",
+            "clock",
+            "rawText",
+            "lifecycle",
+            "participants",
+            "stats",
+            "points.ppr",
+            "points.standard",
+        ):
+            self.assertIn(field, self.panel)
+        self.assertIn("serviceEvents.length - 1", self.panel)
+        self.assertNotIn("boxscore", self.panel.lower())
+        self.assertNotIn("drives", self.panel.lower())
+
+    def test_panel_exposes_required_states_controls_and_keys(self):
+        for text in (
+            "Feed service unavailable",
+            "Loading NFL plays",
+            "Could not load the feed",
+            "No fantasy plays yet",
+            "STALE",
+            "DEMO",
+            "LIVE",
+            'text === "r"',
+            'text === "d"',
+            "onTabRequested",
+            "onCloseRequested",
+            "onMoveRequested",
+        ):
+            self.assertIn(text, self.panel)
+
+
 if __name__ == "__main__":
     unittest.main()
