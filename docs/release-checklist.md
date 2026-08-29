@@ -1,0 +1,50 @@
+# Release checklist
+
+This checklist separates repeatable repository checks from the compositor and
+publication steps that require operator review.
+
+## Automated gate
+
+- [ ] Run `python3 -m compileall -q scripts tests`.
+- [ ] Run `python3 -m unittest discover -s tests -v`.
+- [ ] Run `python3 scripts/feed.py --fixture fixtures/replays/demo.json` and
+  inspect the reception, correction/void, negative rush, interception,
+  catch-fumble, and two-point events.
+- [ ] Run `omarchy plugin validate "$PWD"` from a clean checkout.
+- [ ] Confirm `git diff --check` and a credential/cache scan are clean.
+
+## Runtime gate
+
+- [ ] Install from the committed local clone with
+  `omarchy plugin add "file://$PWD" --enable --yes`.
+- [ ] Confirm live, scheduled/final, demo, and stale-cache states.
+- [ ] Confirm left click, middle-click refresh, panel buttons, and every
+  documented key.
+- [ ] Confirm two monitors share one helper process while keeping independent
+  panel selection/scroll.
+- [ ] Check horizontal and vertical bars under two Omarchy themes for QML
+  warnings, clipping, binding loops, and contrast.
+- [ ] Disable and remove the plugin, confirming no helper remains.
+
+## Preview capture
+
+1. Install the committed plugin under Omarchy and switch to the bundled demo.
+2. Use a horizontal bar and open the panel at a size that shows the reception
+   and reviewed/voided play together; retain enough desktop context to prove it
+   is running inside Omarchy.
+3. Use the active Omarchy screenshot command under the compositor. Do not
+   render HTML, generate a mockup, or composite provider/team artwork.
+4. Crop only empty desktop space, preserve the bar and panel relationship, and
+   check text at repository-preview scale.
+5. Save the approved capture as `preview.png`, update the README preview slot
+   to embed it, and verify that no private notification or account data appears.
+
+## Publication gate
+
+- [ ] Confirm a new competition has opened and review its current rules and
+  permitted provider use; this repository assumes no submission URL.
+- [ ] Have the operator approve `preview.png`, repository metadata, and
+  submission copy.
+- [ ] Replace the generic install URL only after the public repository exists.
+- [ ] Repeat the automated and runtime gates from a clean checkout.
+- [ ] Tag `v0.1.0` only after every release gate passes.
