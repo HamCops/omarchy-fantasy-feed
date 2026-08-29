@@ -88,7 +88,7 @@ Item {
   }
 
   function statLabels(stats) {
-    if (!Array.isArray(stats) || stats.length === 0) return "NO STAT DELTA"
+    if (!stats || stats.length === undefined || stats.length === 0) return "NO STAT DELTA"
     var labels = []
     for (var index = 0; index < stats.length; index++) {
       var label = stats[index] ? String(stats[index].label || "") : ""
@@ -510,7 +510,6 @@ Item {
                 Text {
                   width: parent.width
                   text: String(leaderRow.player.displayName || "Unknown player").toUpperCase()
-                    + " · " + String(leaderRow.player.team || "")
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -519,7 +518,7 @@ Item {
                 }
                 Text {
                   width: parent.width
-                  text: root.statLabels(leaderRow.player.stats)
+                  text: String(leaderRow.player.team || "") + " · " + root.statLabels(leaderRow.player.stats)
                   color: Qt.darker(root.foreground, 1.35)
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption

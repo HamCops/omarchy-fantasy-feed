@@ -122,6 +122,7 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("serviceEvents.length - 1", self.panel)
         self.assertNotIn("boxscore", self.panel.lower())
         self.assertNotIn("drives", self.panel.lower())
+        self.assertIn("stats.length === undefined", self.panel)
 
     def test_panel_exposes_required_states_controls_and_keys(self):
         for text in (
@@ -168,6 +169,7 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn('["ALL", "QB", "RB", "WR", "TE"]', self.standalone)
         self.assertIn("service.favoriteEvents", self.standalone)
         self.assertIn("service.toggleFavorite(player)", self.standalone)
+        self.assertIn("stats.length === undefined", self.standalone)
         self.assertNotRegex(self.standalone, r"(?m)^\s*(Process|Timer)\s*\{")
 
 

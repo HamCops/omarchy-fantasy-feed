@@ -123,7 +123,7 @@ Panel {
   }
 
   function statLabels(stats) {
-    if (!Array.isArray(stats) || stats.length === 0) return "NO STAT DELTA"
+    if (!stats || stats.length === undefined || stats.length === 0) return "NO STAT DELTA"
     var labels = []
     for (var index = 0; index < stats.length; index++) {
       var label = stats[index] ? String(stats[index].label || "") : ""
