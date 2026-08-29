@@ -131,6 +131,25 @@ class FeedUiContractTests(unittest.TestCase):
         ):
             self.assertIn(text, self.panel)
 
+    def test_positioned_participant_rows_have_concrete_heights(self):
+        participant = self.panel.split("delegate: Column {", 1)[1]
+        self.assertIn("height: implicitHeight", participant)
+        self.assertRegex(
+            participant,
+            r"implicitHeight: Math\.max\(playerName\.implicitHeight, pointLine\.implicitHeight\)\s+height: implicitHeight",
+        )
+
+    def test_points_use_positive_negative_and_neutral_colors(self):
+        self.assertIn('readonly property color positivePoints: "#6fcf79"', self.panel)
+        self.assertIn('readonly property color negativePoints: "#ff6b6b"', self.panel)
+        self.assertIn("function pointsColor(value)", self.panel)
+        self.assertIn("color: root.pointsColor(participantRow.points.ppr)", self.panel)
+        self.assertIn("color: root.pointsColor(participantRow.points.standard)", self.panel)
+
+    def test_panel_exposes_automatic_refresh_countdown(self):
+        self.assertIn("function autoRefreshLabel()", self.panel)
+        self.assertIn("AUTO REFRESH", self.panel)
+
 
 if __name__ == "__main__":
     unittest.main()

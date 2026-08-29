@@ -33,6 +33,8 @@ Panel {
   readonly property bool hasEvents: newestEvents.length > 0
   readonly property color contentForeground: bar ? bar.foreground : Color.foreground
   readonly property color contentUrgent: bar ? bar.urgent : Color.urgent
+  readonly property color positivePoints: "#6fcf79"
+  readonly property color negativePoints: "#ff6b6b"
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
 
   // Selection belongs to this panel instance, so opening the same feed on a
@@ -98,6 +100,19 @@ Panel {
     if (Math.abs(number) < 0.005) number = 0
     var formatted = number.toFixed(2).replace(/\.?0+$/, "")
     return (number > 0 ? "+" : "") + formatted
+  }
+
+  function pointsColor(value) {
+    var number = Number(value)
+    if (!isFinite(number) || Math.abs(number) < 0.005) return Qt.darker(contentForeground, 1.35)
+    return number > 0 ? positivePoints : negativePoints
+  }
+
+  function autoRefreshLabel() {
+    if (!feedService) return "AUTO REFRESH OFFLINE"
+    if (feedService.loading) return "AUTO REFRESHING"
+    if (feedService.nextPollSeconds > 0) return "AUTO REFRESH " + feedService.nextPollSeconds + "s"
+    return "AUTO REFRESH ON"
   }
 
   function statLabels(stats) {
@@ -203,6 +218,7 @@ Panel {
         Item {
           width: parent.width
           implicitHeight: Math.max(headerGlyph.implicitHeight, headerText.implicitHeight)
+          height: implicitHeight
 
           Text {
             id: headerGlyph
@@ -307,6 +323,7 @@ Panel {
           visible: !root.hasEvents
           width: parent.width
           implicitHeight: emptyColumn.implicitHeight + Style.space(30)
+          height: implicitHeight
 
           Column {
             id: emptyColumn
@@ -401,6 +418,7 @@ Panel {
               Item {
                 width: parent.width
                 implicitHeight: Math.max(gameLabel.implicitHeight, lifecycleLabel.implicitHeight)
+                height: implicitHeight
 
                 Text {
                   id: gameLabel
@@ -461,11 +479,13 @@ Panel {
                   readonly property var points: participant && participant.points ? participant.points : ({})
 
                   width: parent.width
+                  height: implicitHeight
                   spacing: Style.space(2)
 
                   Item {
                     width: parent.width
                     implicitHeight: Math.max(playerName.implicitHeight, pointLine.implicitHeight)
+                    height: implicitHeight
 
                     Text {
                       id: playerName
@@ -481,15 +501,40 @@ Panel {
                       elide: Text.ElideRight
                     }
 
-                    Text {
+                    Row {
                       id: pointLine
                       anchors.right: parent.right
-                      text: "PPR " + root.signedPoints(participantRow.points.ppr)
-                        + "  ·  STD " + root.signedPoints(participantRow.points.standard)
-                      color: Color.accent
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
+                      spacing: Style.space(4)
+
+                      Text {
+                        text: "PPR"
+                        color: Qt.darker(root.contentForeground, 1.35)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.bodySmall
+                      }
+
+                      Text {
+                        text: root.signedPoints(participantRow.points.ppr)
+                        color: root.pointsColor(participantRow.points.ppr)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                      }
+
+                      Text {
+                        text: "· STD"
+                        color: Qt.darker(root.contentForeground, 1.35)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.bodySmall
+                      }
+
+                      Text {
+                        text: root.signedPoints(participantRow.points.standard)
+                        color: root.pointsColor(participantRow.points.standard)
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                      }
                     }
                   }
 
@@ -510,7 +555,7 @@ Panel {
         Text {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "j/k select · r refresh · d demo/live · Tab switch · Esc close"
+          text: root.autoRefreshLabel() + " · j/k select · r refresh · d demo/live · Tab switch · Esc close"
           color: Qt.darker(root.contentForeground, 1.55)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption
