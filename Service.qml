@@ -10,10 +10,31 @@ Item {
   property var shell: null
 
   property var snapshot: null
+  readonly property var games: snapshot && Array.isArray(snapshot.games) ? snapshot.games : []
   readonly property var events: snapshot && Array.isArray(snapshot.events) ? snapshot.events : []
   readonly property var latestEvent: events.length > 0 ? events[events.length - 1] : null
   readonly property var leaderboard: snapshot && Array.isArray(snapshot.leaderboard) ? snapshot.leaderboard : []
   readonly property var week: snapshot && snapshot.week ? snapshot.week : null
+  property var hiddenGameIds: []
+  readonly property int enabledGameCount: {
+    var count = 0
+    var hidden = hiddenGameIds
+    for (var index = 0; index < games.length; index++) {
+      if (hidden.indexOf(String(games[index].id || "")) === -1) count += 1
+    }
+    return count
+  }
+  readonly property var visibleEvents: {
+    var filtered = []
+    var hidden = hiddenGameIds
+    for (var index = 0; index < events.length; index++) {
+      var event = events[index]
+      if (hidden.indexOf(String(event.gameId || "")) === -1) filtered.push(event)
+    }
+    return filtered
+  }
+  readonly property var latestVisibleEvent: visibleEvents.length > 0
+    ? visibleEvents[visibleEvents.length - 1] : null
   property var favorites: []
   readonly property int favoriteCount: favorites.length
   readonly property var favoriteEvents: {
@@ -21,13 +42,23 @@ Item {
     var sourceEvents = events
     for (var eventIndex = 0; eventIndex < sourceEvents.length; eventIndex++) {
       var event = sourceEvents[eventIndex]
-      var participants = event && Array.isArray(event.participants) ? event.participants : []
+      var participants = event && event.participants
+        && event.participants.length !== undefined ? event.participants : []
       for (var participantIndex = 0; participantIndex < participants.length; participantIndex++) {
         if (isFavorite(participants[participantIndex].playerId)) {
           filtered.push(event)
           break
         }
       }
+    }
+    return filtered
+  }
+  readonly property var visibleFavoriteEvents: {
+    var filtered = []
+    var hidden = hiddenGameIds
+    for (var index = 0; index < favoriteEvents.length; index++) {
+      var event = favoriteEvents[index]
+      if (hidden.indexOf(String(event.gameId || "")) === -1) filtered.push(event)
     }
     return filtered
   }
@@ -107,6 +138,35 @@ Item {
       if (String(favorites[index].playerId || "") === id) return true
     }
     return false
+  }
+
+  function gameEnabled(gameId) {
+    var id = String(gameId || "")
+    return id !== "" && hiddenGameIds.indexOf(id) === -1
+  }
+
+  function toggleGame(gameId) {
+    var id = String(gameId || "")
+    if (id === "") return false
+    var next = hiddenGameIds.slice()
+    var index = next.indexOf(id)
+    if (index === -1) next.push(id)
+    else next.splice(index, 1)
+    hiddenGameIds = next
+    return index !== -1
+  }
+
+  function showAllGames() {
+    hiddenGameIds = []
+  }
+
+  function hideAllGames() {
+    var hidden = []
+    for (var index = 0; index < games.length; index++) {
+      var id = String(games[index].id || "")
+      if (id !== "" && hidden.indexOf(id) === -1) hidden.push(id)
+    }
+    hiddenGameIds = hidden
   }
 
   function toggleFavorite(player) {
@@ -362,6 +422,9 @@ Item {
         stale: root.stale,
         sourceState: root.snapshot ? root.snapshot.sourceState : "unavailable",
         eventCount: root.events.length,
+        visibleEventCount: root.visibleEvents.length,
+        gameCount: root.games.length,
+        enabledGameCount: root.enabledGameCount,
         leaderboardCount: root.leaderboard.length,
         favoriteCount: root.favoriteCount,
         lastUpdated: root.lastUpdated,

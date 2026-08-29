@@ -927,6 +927,15 @@ def _weekly_leaderboard(value: Any) -> list[dict[str, Any]]:
         position = _required_string(raw.get("position"), f"{path}.position")
         if position not in {"QB", "RB", "WR", "TE"}:
             raise FixtureError(f"{path}.position is unsupported")
+        raw_game_ids = raw.get("gameIds", [])
+        if not isinstance(raw_game_ids, list):
+            raise FixtureError(f"{path}.gameIds must be an array")
+        game_ids: list[str] = []
+        for game_index, raw_game_id in enumerate(raw_game_ids):
+            game_id = _required_string(raw_game_id, f"{path}.gameIds[{game_index}]")
+            if game_id in game_ids:
+                raise FixtureError(f"{path}.gameIds is duplicated")
+            game_ids.append(game_id)
         raw_stats = raw.get("stats")
         if not isinstance(raw_stats, Mapping):
             raise FixtureError(f"{path}.stats must be an object")
@@ -950,6 +959,7 @@ def _weekly_leaderboard(value: Any) -> list[dict[str, Any]]:
                 "team": _required_string(raw.get("team"), f"{path}.team"),
                 "position": position,
                 "games": _required_int(raw.get("games", 1), f"{path}.games"),
+                "gameIds": sorted(game_ids),
                 "stats": [
                     {"key": stat.key, "value": stat.value, "label": stat.label}
                     for stat in stats

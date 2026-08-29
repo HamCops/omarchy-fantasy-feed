@@ -20,8 +20,8 @@ Panel {
     ? bar.shell.serviceFor("tdh.fantasy-feed")
     : null
 
-  readonly property var serviceEvents: feedService && Array.isArray(feedService.events)
-    ? feedService.events
+  readonly property var serviceEvents: feedService && Array.isArray(feedService.visibleEvents)
+    ? feedService.visibleEvents
     : []
   readonly property var newestEvents: {
     var reversed = []
@@ -174,6 +174,8 @@ Panel {
     if (!feedService) return "Feed service unavailable"
     if (feedService.loading && !hasSnapshot) return "Loading NFL plays"
     if (feedService.lastError && !hasSnapshot) return "Could not load the feed"
+    if (feedService.games.length > 0 && feedService.enabledGameCount === 0)
+      return "No games selected"
     return "No fantasy plays yet"
   }
 
@@ -181,6 +183,8 @@ Panel {
     if (!feedService) return "The shared Fantasy Feed service is not running."
     if (feedService.loading && !hasSnapshot) return "Fetching the latest games and fantasy-relevant plays."
     if (feedService.lastError && !hasSnapshot) return String(feedService.lastError)
+    if (feedService.games.length > 0 && feedService.enabledGameCount === 0)
+      return "Click one or more matchups above to add them back to the feed."
     if (feedService.demoMode) return "Replay mode is ready, but this fixture has no visible events."
     return "Keep this panel open or switch to Demo for a deterministic sample."
   }
@@ -331,6 +335,12 @@ Panel {
           wrapMode: Text.WordWrap
           maximumLineCount: 2
           elide: Text.ElideRight
+        }
+
+        GameSelector {
+          service: root.feedService
+          foreground: root.contentForeground
+          fontFamily: root.contentFontFamily
         }
 
         PanelSeparator {
@@ -485,10 +495,23 @@ Panel {
                 font.bold: true
               }
 
+              Text {
+                visible: eventCard.fantasyEvent.lifecycle !== "voided"
+                  && eventCard.fantasyEvent.participants
+                  && eventCard.fantasyEvent.participants.length !== undefined
+                  && eventCard.fantasyEvent.participants.length > 0
+                width: parent.width
+                text: "FANTASY IMPACT · POINTS FROM THIS PLAY"
+                color: Color.accent
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
+
               Repeater {
-                model: Array.isArray(eventCard.fantasyEvent.participants)
-                  ? eventCard.fantasyEvent.participants
-                  : []
+                model: eventCard.fantasyEvent.participants
+                  && eventCard.fantasyEvent.participants.length !== undefined
+                    ? eventCard.fantasyEvent.participants : []
 
                 delegate: Column {
                   id: participantRow

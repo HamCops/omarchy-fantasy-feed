@@ -24,7 +24,7 @@ Item {
 
   readonly property var displayedEvents: {
     var source = service
-      ? (activeTab === "favorites" ? service.favoriteEvents : service.events)
+      ? (activeTab === "favorites" ? service.visibleFavoriteEvents : service.visibleEvents)
       : []
     var reversed = []
     for (var index = source.length - 1; index >= 0; index--) reversed.push(source[index])
@@ -36,8 +36,17 @@ Item {
     var filtered = []
     for (var index = 0; index < source.length; index++) {
       var row = source[index]
-      if (positionFilter === "ALL" || String(row.position || "") === positionFilter)
-        filtered.push(row)
+      if (positionFilter !== "ALL" && String(row.position || "") !== positionFilter)
+        continue
+      var gameIds = row.gameIds && row.gameIds.length !== undefined ? row.gameIds : []
+      var belongsToSelectedGame = !service || service.games.length === 0 || gameIds.length === 0
+      for (var gameIndex = 0; gameIndex < gameIds.length; gameIndex++) {
+        if (service.gameEnabled(gameIds[gameIndex])) {
+          belongsToSelectedGame = true
+          break
+        }
+      }
+      if (belongsToSelectedGame) filtered.push(row)
     }
     var mode = scoringMode
     filtered.sort(function(left, right) {
@@ -251,6 +260,12 @@ Item {
           }
         }
 
+        GameSelector {
+          service: root.service
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+        }
+
         Row {
           visible: root.activeTab === "leaders"
           width: parent.width
@@ -296,7 +311,10 @@ Item {
               ? (root.service && root.service.favoriteCount > 0
                 ? "No plays for your favorite players yet."
                 : "Favorite a player from the leaderboard to build a custom feed.")
-              : "No fantasy-relevant plays yet."
+              : (root.service && root.service.games.length > 0
+                  && root.service.enabledGameCount === 0
+                ? "No games selected. Click one or more matchups above to add them back."
+                : "No fantasy-relevant plays yet.")
             color: Qt.darker(root.foreground, 1.35)
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -375,8 +393,22 @@ Item {
                   font.bold: true
                 }
 
+                Text {
+                  visible: eventCard.eventData.lifecycle !== "voided"
+                    && eventCard.eventData.participants
+                    && eventCard.eventData.participants.length !== undefined
+                    && eventCard.eventData.participants.length > 0
+                  text: "FANTASY IMPACT · POINTS FROM THIS PLAY"
+                  color: Color.accent
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+
                 Repeater {
-                  model: Array.isArray(eventCard.eventData.participants) ? eventCard.eventData.participants : []
+                  model: eventCard.eventData.participants
+                    && eventCard.eventData.participants.length !== undefined
+                      ? eventCard.eventData.participants : []
                   delegate: Item {
                     id: participantRow
                     required property var modelData
@@ -556,7 +588,7 @@ Item {
           id: footer
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "1 feed · 2 leaderboard · 3 favorites · p PPR/standard · r refresh now · Esc close"
+          text: "Click games to filter · 1 feed · 2 leaderboard · 3 favorites · p PPR/standard · r refresh · Esc close"
           color: Qt.darker(root.foreground, 1.55)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

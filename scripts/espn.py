@@ -443,10 +443,21 @@ def extract_plays(payload: Mapping[str, Any], game: Mapping[str, Any]) -> list[d
     if previous is None:
         previous = []
     drive_values = _array(previous, "summary.drives.previous")
-    plays: list[dict[str, Any]] = []
+    drive_entries: list[tuple[str, Mapping[str, Any]]] = []
     for drive_index, drive_value in enumerate(drive_values):
         drive_path = f"summary.drives.previous[{drive_index}]"
-        drive = _object(drive_value, drive_path)
+        drive_entries.append((drive_path, _object(drive_value, drive_path)))
+
+    # ESPN keeps the drive in progress outside `previous`. Reading only the
+    # completed-drive array delays every play until the possession ends.
+    current_value = drives.get("current")
+    if current_value is not None:
+        drive_entries.append(
+            ("summary.drives.current", _object(current_value, "summary.drives.current"))
+        )
+
+    plays: list[dict[str, Any]] = []
+    for drive_path, drive in drive_entries:
         raw_plays = _array(drive.get("plays", []), f"{drive_path}.plays")
         for play_index, raw_value in enumerate(raw_plays):
             play_path = f"{drive_path}.plays[{play_index}]"
@@ -512,7 +523,14 @@ def extract_plays(payload: Mapping[str, Any], game: Mapping[str, Any]) -> list[d
                 normalized["providerRejectReason"] = provider_issue
             normalized["providerRevision"] = _source_revision(normalized)
             plays.append(normalized)
-    return plays
+
+    # During the provider's current-to-previous transition the same play can
+    # briefly exist in both collections. Current is processed last, so its
+    # newest revision wins without emitting a duplicate fantasy event.
+    by_play_id: dict[str, dict[str, Any]] = {}
+    for play in plays:
+        by_play_id[play["id"]] = play
+    return list(by_play_id.values())
 
 
 _STAT_MAP: Mapping[str, Mapping[str, str]] = {
@@ -798,6 +816,7 @@ def _aggregate_weekly_players(
                 "team": player["team"],
                 "position": player["position"],
                 "games": len(player["gameIds"]),
+                "gameIds": sorted(player["gameIds"]),
                 "stats": dict(sorted(player["stats"].items())),
             }
         )

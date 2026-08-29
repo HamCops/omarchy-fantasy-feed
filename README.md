@@ -18,7 +18,8 @@ LIVE · 24 PLAYS · ★3
 ```
 
 Opening the compact panel shows the game clock and matchup, ESPN's play text, the
-current/corrected/voided lifecycle, and one scoring row per player. A bundled
+current/corrected/voided lifecycle, and one clearly labeled fantasy-impact row
+per player with the PPR and standard points created by that play. A bundled
 demo covers a reception, negative rush, interception, catch-and-fumble, passing
 two-point conversion, and a reviewed touchdown that becomes voided. Positive
 points are green, negative points are red, and zero is neutral.
@@ -26,6 +27,11 @@ points are green, negative points are red, and zero is neutral.
 Pop the panel into a normal movable/tileable window for three views: the full
 feed, a weekly QB/RB/WR/TE leaderboard sortable by PPR or standard points, and
 a custom feed containing only plays by locally favorited players.
+
+A horizontally scrollable game strip appears across both feed surfaces. Click
+any matchup to toggle it independently; click **ALL** to hide or restore the
+entire slate. The same selection filters the compact feed, bar count,
+standalone feed, favorites feed, and weekly leaderboard.
 
 ## Requirements
 
@@ -65,6 +71,8 @@ omarchy plugin remove tdh.fantasy-feed --yes
   60 seconds while scheduled/offline, and every 300 seconds after games end.
 - Middle-click or **Refresh** requests an optional immediate refresh.
 - Use **Demo/Live** to switch data modes and **↗** (or `o`) to pop out.
+- Click any matchup in the game strip to add or remove that game. Any number of
+  games can be selected at once; **ALL** toggles the complete slate.
 - Use the arrow keys or `j`/`k` to move through plays, `r` to refresh, `d` to
   switch demo/live, and `Esc` to close the compact panel.
 - In the standalone window, use `1`/`2`/`3` for feed/leaderboard/favorites and
@@ -115,7 +123,7 @@ the reception bonus.
 | Receiving two-point conversion | 2 | 2 |
 | Fumble lost | -2 | -2 |
 
-Negative yardage produces negative points. Version 0.2 intentionally excludes
+Negative yardage produces negative points. Version 0.3 intentionally excludes
 kickers, team defense, points-allowed bands, half PPR, custom scoring, fantasy
 league roster sync, projections, alerts, contests, betting data, and other
 sports.
@@ -139,6 +147,12 @@ replaces that event and marks it corrected. If a revision becomes a no-play or
 unsupported result, the former score becomes a voided event instead of leaving
 duplicate points behind. The visible event and diagnostic lists are each capped
 at 200 records.
+
+The provider adapter merges both completed drives and the drive currently in
+progress. ESPN can briefly expose the same play in both locations while moving
+a finished possession, so play IDs are deduplicated with the current revision
+winning. This prevents live fantasy plays from arriving in a batch only after
+the drive ends.
 
 The singleton service permits only one helper process for every monitor and
 for the standalone window. It

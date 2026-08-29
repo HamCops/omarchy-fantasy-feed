@@ -39,7 +39,10 @@ class ServiceBoundaryTests(unittest.TestCase):
     def test_service_exposes_polling_and_ipc_contract(self):
         for property_name in (
             "snapshot",
+            "games",
             "events",
+            "visibleEvents",
+            "latestVisibleEvent",
             "latestEvent",
             "loading",
             "stale",
@@ -55,6 +58,13 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn("readonly property int livePollSeconds: 30", self.source)
         self.assertIn("readonly property int scheduledPollSeconds: 60", self.source)
         self.assertIn("readonly property int idlePollSeconds: 300", self.source)
+
+    def test_service_owns_shared_multi_game_selection(self):
+        self.assertIn("property var hiddenGameIds", self.source)
+        self.assertIn("readonly property int enabledGameCount", self.source)
+        self.assertIn("readonly property var visibleFavoriteEvents", self.source)
+        for method_name in ("gameEnabled", "toggleGame", "showAllGames", "hideAllGames"):
+            self.assertIn(f"function {method_name}(", self.source)
 
     def test_refresh_failure_marks_retained_snapshot_stale(self):
         self.assertIn("_refreshFailed = true", self.source)
@@ -78,6 +88,7 @@ class FeedUiContractTests(unittest.TestCase):
         cls.bar = (ROOT / "BarWidget.qml").read_text(encoding="utf-8")
         cls.panel = (ROOT / "FeedPanel.qml").read_text(encoding="utf-8")
         cls.standalone = (ROOT / "Standalone.qml").read_text(encoding="utf-8")
+        cls.game_selector = (ROOT / "GameSelector.qml").read_text(encoding="utf-8")
 
     def test_bar_forwards_the_complete_popout_shape(self):
         self.assertIn('source: Qt.resolvedUrl("FeedPanel.qml")', self.bar)
@@ -124,6 +135,17 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertNotIn("boxscore", self.panel.lower())
         self.assertNotIn("drives", self.panel.lower())
         self.assertIn("stats.length === undefined", self.panel)
+        self.assertIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.panel)
+        self.assertIn("eventCard.fantasyEvent.participants.length !== undefined", self.panel)
+        self.assertNotIn("Array.isArray(eventCard.fantasyEvent.participants)", self.panel)
+
+    def test_game_selector_is_shared_clickable_and_presentation_only(self):
+        self.assertIn("GameSelector {", self.panel)
+        self.assertIn("GameSelector {", self.standalone)
+        self.assertIn("service.toggleGame(modelData.id)", self.game_selector)
+        self.assertIn("service.hideAllGames()", self.game_selector)
+        self.assertIn("service.showAllGames()", self.game_selector)
+        self.assertNotRegex(self.game_selector, r"(?m)^\s*(Process|Timer)\s*\{")
 
     def test_panel_exposes_required_states_controls_and_keys(self):
         for text in (
@@ -168,7 +190,9 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn('title: "Fantasy Feed"', self.standalone)
         self.assertIn('property string scoringMode: "ppr"', self.standalone)
         self.assertIn('["ALL", "QB", "RB", "WR", "TE"]', self.standalone)
-        self.assertIn("service.favoriteEvents", self.standalone)
+        self.assertIn("service.visibleFavoriteEvents", self.standalone)
+        self.assertIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.standalone)
+        self.assertNotIn("Array.isArray(eventCard.eventData.participants)", self.standalone)
         self.assertIn("service.toggleFavorite(player)", self.standalone)
         self.assertIn("stats.length === undefined", self.standalone)
         self.assertNotRegex(self.standalone, r"(?m)^\s*(Process|Timer)\s*\{")
