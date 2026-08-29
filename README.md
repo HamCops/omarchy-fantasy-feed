@@ -67,7 +67,7 @@ omarchy plugin remove tdh.fantasy-feed --yes
 ## Use
 
 - Left-click the bar item to open or close the feed.
-- The feed refreshes automatically: every 30 seconds during live games, every
+- The feed refreshes automatically: every 15 seconds during live games, every
   60 seconds while scheduled/offline, and every 300 seconds after games end.
 - Middle-click or **Refresh** requests an optional immediate refresh.
 - Use **Demo/Live** to switch data modes and **↗** (or `o`) to pop out.
@@ -77,7 +77,8 @@ omarchy plugin remove tdh.fantasy-feed --yes
   switch demo/live, and `Esc` to close the compact panel.
 - In the standalone window, use `1`/`2`/`3` for feed/leaderboard/favorites and
   `p` to toggle PPR/standard sorting. Select `ALL`, `QB`, `RB`, `WR`, or `TE`,
-  and use `☆`/`★` to update favorites.
+  type in the player/team search (`/` focuses it), and use `☆`/`★` to update
+  favorites.
 
 The same service controls are available through Omarchy shell IPC:
 
@@ -156,7 +157,7 @@ the drive ends.
 
 The singleton service permits only one helper process for every monitor and
 for the standalone window. It
-polls every 30 seconds during live games, 60 seconds for scheduled or failed
+polls every 15 seconds during live games, 60 seconds for scheduled or failed
 refreshes, and 300 seconds for idle/final states, with an 18-second watchdog.
 
 Fresh live data is written atomically to a mode-`0600` last-good cache at:

@@ -24,7 +24,8 @@ publication steps that require operator review.
   documented key.
 - [ ] Confirm PPR/standard sorting, all four position filters, favorite
   persistence after shell restart, favorites-only feed filtering, and arbitrary
-  multi-game selection shared by every view.
+  multi-game selection shared by every view. Confirm player/team search narrows
+  the leaderboard without changing favorite state.
 - [ ] Confirm two monitors share one helper process while keeping independent
   panel selection/scroll.
 - [ ] Check horizontal and vertical bars under two Omarchy themes for QML

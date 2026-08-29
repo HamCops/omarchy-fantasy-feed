@@ -200,7 +200,7 @@ Polling adapts to source state:
 
 | State | Next refresh |
 | --- | ---: |
-| Live | 30 seconds |
+| Live | 15 seconds |
 | Scheduled | 60 seconds |
 | Refresh failure/offline/malformed | 60 seconds |
 | Idle/final | 300 seconds |
@@ -222,7 +222,8 @@ or parser logic. It uses `KeyboardPanel`, `PanelKeyCatcher`, and a virtualized
 `ListView`; renders newest events first; presents one row per participant; and
 marks corrected and voided lifecycle states. Arrow keys and `j`/`k` move the
 monitor-local selection, `r` refreshes, `d` switches demo/live, `o` opens the
-standalone window, and `Esc` closes.
+standalone window, and `Esc` closes. The standalone leaderboard also filters by
+player name, team, or position, with `/` focusing its search field.
 
 `GameSelector.qml` is a shared presentation component for the compact and
 standalone surfaces. The singleton service owns a set of hidden game IDs and

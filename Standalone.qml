@@ -15,6 +15,7 @@ Item {
   property string activeTab: "feed"
   property string scoringMode: "ppr"
   property string positionFilter: "ALL"
+  readonly property string playerSearch: leaderboardSearch.text.trim().toLowerCase()
 
   readonly property color foreground: Color.foreground
   readonly property color background: Color.background
@@ -38,6 +39,11 @@ Item {
       var row = source[index]
       if (positionFilter !== "ALL" && String(row.position || "") !== positionFilter)
         continue
+      if (playerSearch !== "") {
+        var searchable = (String(row.displayName || "") + " "
+          + String(row.team || "") + " " + String(row.position || "")).toLowerCase()
+        if (searchable.indexOf(playerSearch) === -1) continue
+      }
       var gameIds = row.gameIds && row.gameIds.length !== undefined ? row.gameIds : []
       var belongsToSelectedGame = !service || service.games.length === 0 || gameIds.length === 0
       for (var gameIndex = 0; gameIndex < gameIds.length; gameIndex++) {
@@ -165,6 +171,8 @@ Item {
         } else if (event.key === Qt.Key_P) {
           root.scoringMode = root.scoringMode === "ppr" ? "standard" : "ppr"
           event.accepted = true
+        } else if (event.key === Qt.Key_Slash && root.activeTab === "leaders") {
+          leaderboardSearch.forceActiveFocus(); event.accepted = true
         } else if (event.key === Qt.Key_R && root.service) {
           root.service.refresh(); event.accepted = true
         }
@@ -293,6 +301,34 @@ Item {
               active: root.positionFilter === modelData
               onClicked: root.positionFilter = modelData
             }
+          }
+
+          TextField {
+            id: leaderboardSearch
+            width: Style.space(210)
+            placeholderText: "Search player or team…  /"
+            foreground: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            verticalPadding: Style.space(4)
+
+            Keys.onPressed: function(event) {
+              if (event.key === Qt.Key_Escape && text !== "") {
+                clear()
+                event.accepted = true
+              }
+            }
+          }
+
+          Button {
+            visible: root.playerSearch !== ""
+            text: "×"
+            tooltipText: "Clear player search"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.bodySmall
+            bordered: true
+            onClicked: leaderboardSearch.clear()
           }
         }
 
@@ -483,7 +519,9 @@ Item {
           Text {
             anchors.centerIn: parent
             visible: root.activeTab === "leaders" && root.sortedLeaders.length === 0
-            text: "No weekly player totals are available yet."
+            text: root.playerSearch !== ""
+              ? "No players match ‘" + leaderboardSearch.text.trim() + "’."
+              : "No weekly player totals are available yet."
             color: Qt.darker(root.foreground, 1.35)
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -588,7 +626,7 @@ Item {
           id: footer
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "Click games to filter · 1 feed · 2 leaderboard · 3 favorites · p PPR/standard · r refresh · Esc close"
+          text: "Click games to filter · / search players · 1 feed · 2 leaderboard · 3 favorites · p scoring · r refresh · Esc close"
           color: Qt.darker(root.foreground, 1.55)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

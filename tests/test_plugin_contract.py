@@ -55,7 +55,7 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn('target: "tdh.fantasy-feed"', self.source)
         for method_name in ("status", "refresh", "demo", "live"):
             self.assertIn(f"function {method_name}(): string", self.source)
-        self.assertIn("readonly property int livePollSeconds: 30", self.source)
+        self.assertIn("readonly property int livePollSeconds: 15", self.source)
         self.assertIn("readonly property int scheduledPollSeconds: 60", self.source)
         self.assertIn("readonly property int idlePollSeconds: 300", self.source)
 
@@ -194,6 +194,9 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.standalone)
         self.assertNotIn("Array.isArray(eventCard.eventData.participants)", self.standalone)
         self.assertIn("service.toggleFavorite(player)", self.standalone)
+        self.assertIn('placeholderText: "Search player or team…  /"', self.standalone)
+        self.assertIn("searchable.indexOf(playerSearch)", self.standalone)
+        self.assertIn("Qt.Key_Slash", self.standalone)
         self.assertIn("stats.length === undefined", self.standalone)
         self.assertNotRegex(self.standalone, r"(?m)^\s*(Process|Timer)\s*\{")
 

@@ -82,7 +82,7 @@ Item {
     ? Quickshell.env("XDG_CONFIG_HOME") : Quickshell.env("HOME") + "/.config"
   readonly property string favoritesPath: configHome + "/omarchy/fantasy-feed.json"
 
-  readonly property int livePollSeconds: 30
+  readonly property int livePollSeconds: 15
   readonly property int scheduledPollSeconds: 60
   readonly property int idlePollSeconds: 300
   readonly property int watchdogMilliseconds: 18000
