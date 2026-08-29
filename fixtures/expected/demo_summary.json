@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-08-28T20:11:00Z",
+  "sourceState": "live",
+  "eventStates": [
+    ["reception-18", "current"],
+    ["reviewed-touchdown", "voided"],
+    ["rush-negative", "current"],
+    ["interception", "current"],
+    ["catch-fumble", "current"],
+    ["passing-two-point", "current"]
+  ],
+  "skipped": [
+    ["reviewed-touchdown", "no_play_penalty"],
+    ["unknown-type", "unknown_play_type"]
+  ]
+}

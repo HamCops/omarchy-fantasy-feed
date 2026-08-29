@@ -1,0 +1,113 @@
+{
+  "fixtureVersion": 1,
+  "athletes": [
+    {"id": "athlete-1", "firstName": "Tyler", "lastName": "Huntley", "displayName": "Tyler Huntley", "team": "CLE"},
+    {"id": "athlete-2", "firstName": "Jahmal", "lastName": "Cuevas", "displayName": "Jahmal Cuevas", "team": "CLE"},
+    {"id": "athlete-3", "firstName": "Charlie", "lastName": "Moore", "displayName": "Charlie Moore", "team": "CLE"},
+    {"id": "athlete-4", "firstName": "Rasheen", "lastName": "Ali", "displayName": "Rasheen Ali", "team": "CLE"},
+    {"id": "athlete-5", "firstName": "John", "lastName": "Fagnano", "displayName": "John Fagnano", "team": "CLE"},
+    {"id": "athlete-6", "firstName": "Keaton", "lastName": "Allen", "displayName": "Keaton Allen", "team": "CLE"},
+    {"id": "athlete-7", "firstName": "Austin", "lastName": "Reed", "displayName": "Austin Reed", "team": "CLE"}
+  ],
+  "plays": [
+    {
+      "provider": "espn", "gameId": "401873302", "id": "reception-18", "sequenceNumber": 10,
+      "modified": "2026-08-28T20:00:01Z", "type": {"text": "Pass Reception"},
+      "text": "T.Huntley pass short right to J.Cuevas pushed ob at BLT 38 for 18 yards (T.Owens).",
+      "period": {"number": 1}, "clock": {"displayValue": "12:31"}, "wallclock": "2026-08-28T20:00:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": false,
+      "isPenalty": false, "isTurnover": false, "statYardage": 18,
+      "officialStats": {"passing_yards": 18, "reception": 1, "receiving_yards": 18}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "passing-td-25", "sequenceNumber": 20,
+      "modified": "2026-08-28T20:01:01Z", "type": {"text": "Passing Touchdown"},
+      "text": "(Shotgun) T.Huntley pass deep right to C.Moore for 25 yards, TOUCHDOWN. T.Loop extra point is GOOD, Center-N.Moore, Holder-R.Eckley.",
+      "period": {"number": 1}, "clock": {"displayValue": "09:45"}, "wallclock": "2026-08-28T20:01:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": true,
+      "isPenalty": false, "isTurnover": false, "statYardage": 25,
+      "officialStats": {"passing_yards": 25, "passing_touchdown": 1, "reception": 1, "receiving_yards": 25, "receiving_touchdown": 1, "kick_extra_points_made": 1}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "rush-negative", "sequenceNumber": 30,
+      "modified": "2026-08-28T20:02:01Z", "type": {"text": "Rush"},
+      "text": "R.Ali left end to BLT 31 for -2 yards (B.Cowart).",
+      "period": {"number": 1}, "clock": {"displayValue": "08:14"}, "wallclock": "2026-08-28T20:02:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": false,
+      "isPenalty": false, "isTurnover": false, "statYardage": -2,
+      "officialStats": {"rushing_yards": -2}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "interception", "sequenceNumber": 40,
+      "modified": "2026-08-28T20:03:01Z", "type": {"text": "Pass Interception Return"},
+      "text": "(Shotgun) A.Reed pass deep middle intended for O.Smith INTERCEPTED by Q.Johnson at BLT 47. Q.Johnson pushed ob at BLT 24 for 23 yards (C.Johnson).",
+      "period": {"number": 2}, "clock": {"displayValue": "14:21"}, "wallclock": "2026-08-28T20:03:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": false,
+      "isPenalty": false, "isTurnover": true, "statYardage": 23,
+      "officialStats": {"interception_thrown": 1}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "catch-fumble", "sequenceNumber": 50,
+      "modified": "2026-08-28T20:04:01Z", "type": {"text": "Fumble Recovery (Opponent)"},
+      "text": "(Shotgun) T.Huntley pass short right to J.Cuevas to BLT 38 for 10 yards (T.Owens). J.Cuevas FUMBLES (T.Owens), RECOVERED by BLT-B.Cowart at BLT 38.",
+      "period": {"number": 2}, "clock": {"displayValue": "11:02"}, "wallclock": "2026-08-28T20:04:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": false,
+      "isPenalty": false, "isTurnover": true, "statYardage": 10,
+      "officialStats": {"passing_yards": 10, "reception": 1, "receiving_yards": 10, "fumble_lost": 1}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "passing-two-point", "sequenceNumber": 60,
+      "modified": "2026-08-28T20:05:01Z", "type": {"text": "Two-point Pass"},
+      "text": "(Shotgun) T.Huntley pass to J.Cuevas is complete for TWO-POINT CONVERSION.",
+      "period": {"number": 2}, "clock": {"displayValue": "07:43"}, "wallclock": "2026-08-28T20:05:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": true,
+      "isPenalty": false, "isTurnover": false, "statYardage": 0,
+      "officialStats": {"passing_two_point_conversion": 1, "receiving_two_point_conversion": 1}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "rushing-td", "sequenceNumber": 70,
+      "modified": "2026-08-28T20:06:01Z", "type": {"text": "Rushing Touchdown"},
+      "text": "J.Fagnano left guard for 1 yard, TOUCHDOWN. T.Loop extra point is GOOD, Center-N.Moore, Holder-R.Eckley.",
+      "period": {"number": 3}, "clock": {"displayValue": "13:09"}, "wallclock": "2026-08-28T20:06:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": true,
+      "isPenalty": false, "isTurnover": false, "statYardage": 1,
+      "officialStats": {"rushing_yards": 1, "rushing_touchdown": 1, "kick_extra_points_made": 1}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "rushing-two-point", "sequenceNumber": 80,
+      "modified": "2026-08-28T20:07:01Z", "type": {"text": "Two-point Rush"},
+      "text": "R.Ali rushes up the middle for TWO-POINT CONVERSION.",
+      "period": {"number": 3}, "clock": {"displayValue": "06:17"}, "wallclock": "2026-08-28T20:07:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": true,
+      "isPenalty": false, "isTurnover": false, "statYardage": 0,
+      "officialStats": {"rushing_two_point_conversion": 1}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "rush-fumble", "sequenceNumber": 90,
+      "modified": "2026-08-28T20:08:01Z", "type": {"text": "Fumble Recovery (Opponent)"},
+      "text": "K.Allen left tackle to BLT 30 for 2 yards (B.Cowart). K.Allen FUMBLES (B.Cowart), RECOVERED by BLT-B.Okoye at WAS 30.  The fumble was assisted by replay.",
+      "period": {"number": 3}, "clock": {"displayValue": "04:48"}, "wallclock": "2026-08-28T20:08:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": false,
+      "isPenalty": false, "isTurnover": true, "statYardage": 0,
+      "officialStats": {"rushing_yards": 2, "fumble_lost": 1}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "reception-zero", "sequenceNumber": 100,
+      "modified": "2026-08-28T20:09:01Z", "type": {"text": "Pass Reception"},
+      "text": "T.Huntley pass short right to J.Cuevas for no gain (T.Owens).",
+      "period": {"number": 3}, "clock": {"displayValue": "03:30"}, "wallclock": "2026-08-28T20:09:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": false,
+      "isPenalty": false, "isTurnover": false, "statYardage": 0,
+      "officialStats": {"passing_yards": 0, "reception": 1, "receiving_yards": 0}
+    },
+    {
+      "provider": "espn", "gameId": "401873302", "id": "scramble-14", "sequenceNumber": 110,
+      "modified": "2026-08-28T20:10:01Z", "type": {"text": "Rush"},
+      "text": "T.Huntley scrambles right end to WAS 45 for 14 yards (P.Butler).",
+      "period": {"number": 3}, "clock": {"displayValue": "02:18"}, "wallclock": "2026-08-28T20:10:01Z",
+      "away": "CLE", "home": "BLT", "offenseTeam": "CLE", "scoringPlay": false,
+      "isPenalty": false, "isTurnover": false, "statYardage": 14,
+      "officialStats": {"rushing_yards": 14}
+    }
+  ]
+}
