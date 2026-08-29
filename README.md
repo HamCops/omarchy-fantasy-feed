@@ -1,25 +1,31 @@
 # Fantasy Feed
 
-Fantasy Feed is a small Omarchy bar plugin for following NFL plays through a
-fantasy-football lens. The bar keeps the newest meaningful play compact; the
-panel expands it into the raw play, stat deltas, and side-by-side full-PPR and
-standard scores for every affected player.
+Fantasy Feed is an Omarchy plugin for following NFL plays through a
+fantasy-football lens. A stable bar capsule shows feed health without resizing
+on every snap. The compact panel expands each play into raw text, stat deltas,
+and side-by-side full-PPR and standard scores; a standalone window adds weekly
+leaderboards and a favorites-only feed.
 
 It uses the active Omarchy theme and deliberately avoids sportsbook branding,
 accounts, contests, and roster management.
 
 ## What it looks like
 
-The horizontal bar presents one line such as:
+The horizontal bar presents a stable status such as:
 
 ```text
-CUEVAS · +2.8 PPR / +1.8 STD
+LIVE · 24 PLAYS · ★3
 ```
 
-Opening the panel shows the game clock and matchup, ESPN's play text, the
+Opening the compact panel shows the game clock and matchup, ESPN's play text, the
 current/corrected/voided lifecycle, and one scoring row per player. A bundled
 demo covers a reception, negative rush, interception, catch-and-fumble, passing
-two-point conversion, and a reviewed touchdown that becomes voided.
+two-point conversion, and a reviewed touchdown that becomes voided. Positive
+points are green, negative points are red, and zero is neutral.
+
+Pop the panel into a normal movable/tileable window for three views: the full
+feed, a weekly QB/RB/WR/TE leaderboard sortable by PPR or standard points, and
+a custom feed containing only plays by locally favorited players.
 
 ## Requirements
 
@@ -55,10 +61,15 @@ omarchy plugin remove tdh.fantasy-feed --yes
 ## Use
 
 - Left-click the bar item to open or close the feed.
-- Middle-click the bar item to refresh.
-- Use **Refresh** in the panel, or **Demo/Live** to switch data modes.
+- The feed refreshes automatically: every 30 seconds during live games, every
+  60 seconds while scheduled/offline, and every 300 seconds after games end.
+- Middle-click or **Refresh** requests an optional immediate refresh.
+- Use **Demo/Live** to switch data modes and **↗** (or `o`) to pop out.
 - Use the arrow keys or `j`/`k` to move through plays, `r` to refresh, `d` to
-  switch demo/live, `Tab` to switch panels, and `Esc` to close.
+  switch demo/live, and `Esc` to close the compact panel.
+- In the standalone window, use `1`/`2`/`3` for feed/leaderboard/favorites and
+  `p` to toggle PPR/standard sorting. Select `ALL`, `QB`, `RB`, `WR`, or `TE`,
+  and use `☆`/`★` to update favorites.
 
 The same service controls are available through Omarchy shell IPC:
 
@@ -104,9 +115,15 @@ the reception bonus.
 | Receiving two-point conversion | 2 | 2 |
 | Fumble lost | -2 | -2 |
 
-Negative yardage produces negative points. Version 1 intentionally excludes
-kickers, team defense, points-allowed bands, half PPR, custom scoring, rosters,
-projections, alerts, leaderboards, contests, betting data, and other sports.
+Negative yardage produces negative points. Version 0.2 intentionally excludes
+kickers, team defense, points-allowed bands, half PPR, custom scoring, fantasy
+league roster sync, projections, alerts, contests, betting data, and other
+sports.
+
+Weekly leaderboard totals come from complete structured game box scores rather
+than the bounded play feed. ESPN roster metadata is used only to assign the
+QB/RB/WR/TE grouping. Favorites are stored locally in
+`~/.config/omarchy/fantasy-feed.json`; no fantasy account is required.
 
 ## Reliability and corrections
 
@@ -122,7 +139,8 @@ unsupported result, the former score becomes a voided event instead of leaving
 duplicate points behind. The visible event and diagnostic lists are each capped
 at 200 records.
 
-The singleton service permits only one helper process for every monitor. It
+The singleton service permits only one helper process for every monitor and
+for the standalone window. It
 polls every 30 seconds during live games, 60 seconds for scheduled or failed
 refreshes, and 300 seconds for idle/final states, with an 18-second watchdog.
 
@@ -168,9 +186,10 @@ git diff --check
 ```
 
 Tests use injected responses and checked-in fixtures; they do not require the
-network. The suite covers scoring, identity, fail-closed parsing, revision
-replacement, atomic cache recovery, provider boundaries, process ownership,
-and the bar/panel contract. Architecture details live in
+network. The suite covers scoring, weekly aggregation, position resolution,
+identity, fail-closed parsing, revision replacement, atomic cache recovery,
+provider boundaries, favorites persistence, process ownership, and the three
+UI hosts. Architecture details live in
 [docs/architecture.md](docs/architecture.md).
 
 ## License

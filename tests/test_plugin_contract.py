@@ -14,7 +14,8 @@ class PluginManifestTests(unittest.TestCase):
         manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(1, manifest["schemaVersion"])
         self.assertEqual("tdh.fantasy-feed", manifest["id"])
-        self.assertEqual({"service", "bar-widget"}, set(manifest["kinds"]))
+        self.assertEqual({"service", "bar-widget", "panel"}, set(manifest["kinds"]))
+        self.assertTrue(manifest["keepLoaded"])
         self.assertFalse(manifest["barWidget"]["allowMultiple"])
         for entry_point in manifest["entryPoints"].values():
             self.assertTrue((ROOT / entry_point).is_file())
@@ -62,12 +63,20 @@ class ServiceBoundaryTests(unittest.TestCase):
         )
         self.assertIn("_refreshFailed = false", self.source)
 
+    def test_service_persists_favorites_without_an_extra_process(self):
+        self.assertIn("FileView {", self.source)
+        self.assertIn("atomicWrites: true", self.source)
+        self.assertIn("fantasy-feed.json", self.source)
+        self.assertIn("function toggleFavorite(player)", self.source)
+        self.assertIn("readonly property var favoriteEvents", self.source)
+
 
 class FeedUiContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.bar = (ROOT / "BarWidget.qml").read_text(encoding="utf-8")
         cls.panel = (ROOT / "FeedPanel.qml").read_text(encoding="utf-8")
+        cls.standalone = (ROOT / "Standalone.qml").read_text(encoding="utf-8")
 
     def test_bar_forwards_the_complete_popout_shape(self):
         self.assertIn('source: Qt.resolvedUrl("FeedPanel.qml")', self.bar)
@@ -80,8 +89,8 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn('bar.shell.serviceFor("tdh.fantasy-feed")', self.bar)
         self.assertNotIn("firstPartyServiceFor", self.bar)
         self.assertIn("if (root.vertical) return glyph", self.bar)
-        self.assertIn("points.ppr", self.bar)
-        self.assertIn("points.standard", self.bar)
+        self.assertIn("function barLabel()", self.bar)
+        self.assertIn('label += " · ★" + feedService.favoriteCount', self.bar)
         self.assertIn("buttonCode === Qt.MiddleButton", self.bar)
         self.assertIn("root.feedService.refresh()", self.bar)
         self.assertNotRegex(self.bar, r"(?m)^\s*(Process|Timer)\s*\{")
@@ -128,6 +137,8 @@ class FeedUiContractTests(unittest.TestCase):
             "onTabRequested",
             "onCloseRequested",
             "onMoveRequested",
+            "Open standalone window",
+            "root.popOut()",
         ):
             self.assertIn(text, self.panel)
 
@@ -149,6 +160,15 @@ class FeedUiContractTests(unittest.TestCase):
     def test_panel_exposes_automatic_refresh_countdown(self):
         self.assertIn("function autoRefreshLabel()", self.panel)
         self.assertIn("AUTO REFRESH", self.panel)
+
+    def test_standalone_window_has_feed_leaderboard_and_favorites(self):
+        self.assertIn("FloatingWindow {", self.standalone)
+        self.assertIn('title: "Fantasy Feed"', self.standalone)
+        self.assertIn('property string scoringMode: "ppr"', self.standalone)
+        self.assertIn('["ALL", "QB", "RB", "WR", "TE"]', self.standalone)
+        self.assertIn("service.favoriteEvents", self.standalone)
+        self.assertIn("service.toggleFavorite(player)", self.standalone)
+        self.assertNotRegex(self.standalone, r"(?m)^\s*(Process|Timer)\s*\{")
 
 
 if __name__ == "__main__":

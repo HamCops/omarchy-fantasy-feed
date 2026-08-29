@@ -886,6 +886,80 @@ def _normalized_item_key(item: Mapping[str, Any]) -> PlayKey:
     )
 
 
+def _normalized_week(value: Any, path: str) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise FixtureError(f"{path} must be an object")
+    result = {
+        "season": _required_int(value.get("season"), f"{path}.season"),
+        "seasonType": _required_int(value.get("seasonType"), f"{path}.seasonType"),
+        "number": _required_int(value.get("number"), f"{path}.number"),
+        "label": _required_string(value.get("label"), f"{path}.label"),
+        "detail": str(value.get("detail", "")),
+    }
+    if result["season"] < 2000 or result["seasonType"] < 1 or result["number"] < 1:
+        raise FixtureError(f"{path} contains an invalid season or week")
+    return result
+
+
+def _week_key(value: Mapping[str, Any] | None) -> tuple[int, int, int] | None:
+    if value is None:
+        return None
+    return (int(value["season"]), int(value["seasonType"]), int(value["number"]))
+
+
+def _weekly_leaderboard(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise FixtureError("fixture frame weeklyPlayers must be an array")
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(value):
+        path = f"fixture frame weeklyPlayers[{index}]"
+        if not isinstance(raw, Mapping):
+            raise FixtureError(f"{path} must be an object")
+        player_id = _required_string(raw.get("playerId"), f"{path}.playerId")
+        if player_id in seen:
+            raise FixtureError(f"{path}.playerId is duplicated")
+        seen.add(player_id)
+        position = _required_string(raw.get("position"), f"{path}.position")
+        if position not in {"QB", "RB", "WR", "TE"}:
+            raise FixtureError(f"{path}.position is unsupported")
+        raw_stats = raw.get("stats")
+        if not isinstance(raw_stats, Mapping):
+            raise FixtureError(f"{path}.stats must be an object")
+        stats: list[StatDelta] = []
+        for key in SCORING_TABLE:
+            if key not in raw_stats:
+                continue
+            amount = _required_int(raw_stats[key], f"{path}.stats.{key}")
+            if amount != 0:
+                stats.append(stat_delta(key, amount))
+        unsupported = sorted(set(raw_stats) - set(SCORING_TABLE))
+        if unsupported:
+            raise FixtureError(f"{path}.stats has unsupported keys: {', '.join(unsupported)}")
+        ppr, standard = score_stats(stats)
+        rows.append(
+            {
+                "playerId": player_id,
+                "displayName": _required_string(
+                    raw.get("displayName"), f"{path}.displayName"
+                ),
+                "team": _required_string(raw.get("team"), f"{path}.team"),
+                "position": position,
+                "games": _required_int(raw.get("games", 1), f"{path}.games"),
+                "stats": [
+                    {"key": stat.key, "value": stat.value, "label": stat.label}
+                    for stat in stats
+                ],
+                "points": {"ppr": _points(ppr), "standard": _points(standard)},
+            }
+        )
+    return sorted(rows, key=lambda row: (row["position"], row["team"], row["playerId"]))
+
+
 def reconcile_frame(
     previous_snapshot: Mapping[str, Any] | None,
     athletes: Any,
@@ -901,6 +975,11 @@ def reconcile_frame(
         raise ValueError("snapshot caps must be positive")
 
     previous = previous_snapshot if isinstance(previous_snapshot, Mapping) else {}
+    frame_week = _normalized_week(frame.get("week"), "fixture frame.week")
+    previous_week = _normalized_week(previous.get("week"), "snapshot.week")
+    if frame_week is not None and previous_week is not None and _week_key(frame_week) != _week_key(previous_week):
+        previous = {}
+        previous_week = None
     active_events: dict[PlayKey, dict[str, Any]] = {}
     latest_revision: dict[PlayKey, str] = {}
     games: dict[str, dict[str, Any]] = {}
@@ -970,12 +1049,21 @@ def reconcile_frame(
         isinstance(error, Mapping) for error in frame_errors
     ):
         raise FixtureError("fixture frame errors must be an array of objects")
+    if "weeklyPlayers" in frame:
+        leaderboard = _weekly_leaderboard(frame.get("weeklyPlayers"))
+    else:
+        prior_leaderboard = previous.get("leaderboard", [])
+        if not isinstance(prior_leaderboard, list):
+            raise FixtureError("snapshot.leaderboard must be an array")
+        leaderboard = copy.deepcopy(prior_leaderboard)
     return {
         "schemaVersion": SCHEMA_VERSION,
         "observedAt": frame["observedAt"],
         "sourceState": frame["sourceState"],
         "stale": frame.get("stale", False),
+        "week": frame_week or previous_week,
         "games": [games[game_id] for game_id in sorted(games)],
+        "leaderboard": leaderboard,
         "events": events,
         "skipped": skipped[-skipped_cap:],
         "errors": [dict(error) for error in frame_errors][-skipped_cap:],
@@ -1038,6 +1126,13 @@ def validate_snapshot(value: Any) -> dict[str, Any]:
             isinstance(item, Mapping) for item in collection
         ):
             raise FixtureError(f"snapshot.{key} must be an array of objects")
+    if value.get("week") is not None:
+        _normalized_week(value.get("week"), "snapshot.week")
+    leaderboard = value.get("leaderboard", [])
+    if not isinstance(leaderboard, list) or not all(
+        isinstance(item, Mapping) for item in leaderboard
+    ):
+        raise FixtureError("snapshot.leaderboard must be an array of objects")
     return copy.deepcopy(dict(value))
 
 

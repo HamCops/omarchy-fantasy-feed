@@ -3,7 +3,7 @@
 ## Deployed shape
 
 ```text
-ESPN scoreboard, summaries, and per-play statistics
+ESPN scoreboard, summaries, per-play statistics, and rosters
                          |
                          v
                  scripts/espn.py
@@ -14,19 +14,20 @@ ESPN scoreboard, summaries, and per-play statistics
        attribution, scoring, revisions, and cache
                          |
                          v
-              FeedSnapshot schema v1 JSON
+      FeedSnapshot schema v1 JSON (plays + weekly totals)
                          |
                          v
                   Service.qml
           singleton polling and last-good state
-                   |              |
-                   v              v
-            BarWidget.qml    FeedPanel.qml
-             per monitor      per monitor
+              |              |                 |
+              v              v                 v
+       BarWidget.qml    FeedPanel.qml     Standalone.qml
+        per monitor      per monitor       one normal window
 ```
 
 The Python helper owns data correctness; QML owns presentation. `Service.qml`
-is loaded once for the plugin and is the only owner of a process or timer.
+is loaded once for the plugin and is the only owner of the data process and
+polling timers.
 Widgets on multiple monitors read that shared service, so they cannot multiply
 provider requests. Each panel instance keeps its own selection and scroll.
 
@@ -69,16 +70,19 @@ collection does the following:
 
 1. Fetches the NFL scoreboard and normalizes game/status metadata.
 2. Fetches eligible game summaries concurrently with at most eight workers.
-3. Extracts stable athlete IDs from boxscore statistics and plays from drive
+3. Extracts stable athlete IDs from boxscore statistics, complete supported
+   weekly player totals, and plays from drive
    summaries.
-4. Selects only known fantasy candidate types plus a bounded diagnostic sample.
-5. Converts exact private per-play team-stat references to their approved
+4. Resolves QB/RB/WR/TE positions from free summary hints, the last-good
+   leaderboard, then only the still-needed team roster endpoints.
+5. Selects only known fantasy candidate types plus a bounded diagnostic sample.
+6. Converts exact private per-play team-stat references to their approved
    public HTTPS host and fetches those structured deltas.
-6. Produces the same fixture frame shape consumed by deterministic replay.
+7. Produces the same fixture frame shape consumed by deterministic replay.
 
 Network requests have a five-second per-request timeout and strict URL,
 protocol, host, path, response-type, and response-size validation. Scoreboard,
-summary, and play-stat responses have separate caps. A cold observation follows
+summary, roster, and play-stat responses have separate caps. A cold observation follows
 at most 40 supported candidates and retains at most 40 unsupported diagnostics;
 unchanged provider revisions reuse the existing normalized record without
 another play-stat request.
@@ -90,7 +94,8 @@ refresh. Partial provider data never becomes a fresh snapshot.
 
 Provider input ends at `parse_play`. UI input begins at the versioned
 `FeedSnapshot`, whose top-level fields are `schemaVersion`, `observedAt`,
-`sourceState`, `stale`, `games`, `events`, `skipped`, and `errors`. QML does not
+`sourceState`, `stale`, `week`, `games`, `leaderboard`, `events`, `skipped`,
+and `errors`. QML does not
 inspect boxscores, drive objects, regular expressions, or scoring rules.
 
 The public Python model uses frozen slotted dataclasses:
@@ -208,19 +213,24 @@ update/error, and the countdown to the next poll.
 
 ## UI contract
 
-`BarWidget.qml` renders only the latest normalized event. Horizontal bars show
-a football glyph, player, and PPR/standard point pair; vertical bars show the
-glyph only. Stale state is explicit. Left click toggles `FeedPanel.qml`, and
-middle click requests one shared refresh. The widget forwards Omarchy's full
-open, close, toggle, and popout-switch contract.
+`BarWidget.qml` renders a stable source-state/play-count/favorite-count capsule;
+the newest raw play remains in its tooltip. Vertical bars show the glyph only.
+Stale state is explicit. Left click toggles `FeedPanel.qml`, and middle click
+requests an optional immediate shared refresh.
 
 The panel is presentation-only: it contains no process, timer, provider, cache,
 or parser logic. It uses `KeyboardPanel`, `PanelKeyCatcher`, and a virtualized
 `ListView`; renders newest events first; presents one row per participant; and
 marks corrected and voided lifecycle states. Arrow keys and `j`/`k` move the
-monitor-local selection, `r` refreshes, `d` switches demo/live, `Tab` switches
-panels, and `Esc` closes. Colors, fonts, spacing, and bar sizing come from
-Omarchy theme tokens.
+monitor-local selection, `r` refreshes, `d` switches demo/live, `o` opens the
+standalone window, and `Esc` closes.
+
+`Standalone.qml` owns an ordinary `FloatingWindow`, so Hyprland can move, tile,
+or place it like another app instead of covering the current workspace as a
+transient bar popup. It presents feed, leaderboard, and favorite-feed tabs.
+Leaderboard sorting/filtering and view selection are presentation state. The
+service persists favorite player identities atomically under Omarchy config and
+derives the favorites-only feed from normalized participant IDs.
 
 ## Verification
 
@@ -234,7 +244,7 @@ omarchy plugin validate "$PWD"
 git diff --check
 ```
 
-On 2026-08-29 this checkout passed all 60 tests and
+On 2026-08-29 this checkout passed all 69 tests and
 `omarchy plugin validate "$PWD"`.
 
 The current suite covers every scoring row, stable identity resolution,

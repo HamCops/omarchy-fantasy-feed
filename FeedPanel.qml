@@ -94,6 +94,13 @@ Panel {
     else feedService.selectMode(true)
   }
 
+  function popOut() {
+    var hostShell = bar && bar.shell ? bar.shell : null
+    root.close()
+    if (hostShell && typeof hostShell.summon === "function")
+      hostShell.summon("tdh.fantasy-feed", JSON.stringify({tab: "feed"}))
+  }
+
   function signedPoints(value) {
     var number = Number(value)
     if (!isFinite(number)) number = 0
@@ -208,6 +215,7 @@ Panel {
       onTextKey: function(text) {
         if (text === "r" || text === "R") root.refreshFeed()
         else if (text === "d" || text === "D") root.toggleMode()
+        else if (text === "o" || text === "O") root.popOut()
       }
 
       Column {
@@ -277,6 +285,16 @@ Panel {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
+
+            Button {
+              text: "↗"
+              tooltipText: "Open standalone window (o)"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              fontSize: Style.font.body
+              bordered: true
+              onClicked: root.popOut()
+            }
 
             Button {
               iconText: "󰑐"
@@ -555,7 +573,7 @@ Panel {
         Text {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: root.autoRefreshLabel() + " · j/k select · r refresh · d demo/live · Tab switch · Esc close"
+          text: root.autoRefreshLabel() + " · o pop out · j/k select · r refresh · d demo/live · Esc close"
           color: Qt.darker(root.contentForeground, 1.55)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption

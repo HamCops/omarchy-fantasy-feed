@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell
 import Quickshell.Io
 
 Item {
@@ -11,6 +12,25 @@ Item {
   property var snapshot: null
   readonly property var events: snapshot && Array.isArray(snapshot.events) ? snapshot.events : []
   readonly property var latestEvent: events.length > 0 ? events[events.length - 1] : null
+  readonly property var leaderboard: snapshot && Array.isArray(snapshot.leaderboard) ? snapshot.leaderboard : []
+  readonly property var week: snapshot && snapshot.week ? snapshot.week : null
+  property var favorites: []
+  readonly property int favoriteCount: favorites.length
+  readonly property var favoriteEvents: {
+    var filtered = []
+    var sourceEvents = events
+    for (var eventIndex = 0; eventIndex < sourceEvents.length; eventIndex++) {
+      var event = sourceEvents[eventIndex]
+      var participants = event && Array.isArray(event.participants) ? event.participants : []
+      for (var participantIndex = 0; participantIndex < participants.length; participantIndex++) {
+        if (isFavorite(participants[participantIndex].playerId)) {
+          filtered.push(event)
+          break
+        }
+      }
+    }
+    return filtered
+  }
   property bool loading: false
   property bool _refreshFailed: false
   readonly property bool stale: _refreshFailed || (snapshot ? snapshot.stale === true : false)
@@ -25,6 +45,9 @@ Item {
   property bool _runDemoMode: false
   property bool _timedOut: false
   property bool _refreshAfterExit: false
+  property bool _favoritesLoaded: false
+
+  readonly property string favoritesPath: Quickshell.env("HOME") + "/.config/omarchy/fantasy-feed.json"
 
   readonly property int livePollSeconds: 30
   readonly property int scheduledPollSeconds: 60
@@ -63,6 +86,7 @@ Item {
     if (typeof value.stale !== "boolean") return false
     return isObjectArray(value.games)
       && isObjectArray(value.events)
+      && (!value.leaderboard || isObjectArray(value.leaderboard))
       && isObjectArray(value.skipped)
       && isObjectArray(value.errors)
   }
@@ -72,6 +96,73 @@ Item {
     var error = value.errors[0]
     if (!isObject(error)) return ""
     return compactError(error.message || error.code || "")
+  }
+
+  function isFavorite(playerId) {
+    var id = String(playerId || "")
+    if (id === "") return false
+    for (var index = 0; index < favorites.length; index++) {
+      if (String(favorites[index].playerId || "") === id) return true
+    }
+    return false
+  }
+
+  function toggleFavorite(player) {
+    if (!player || typeof player !== "object") return false
+    var playerId = String(player.playerId || "")
+    if (playerId === "") return false
+    var next = []
+    var removed = false
+    for (var index = 0; index < favorites.length; index++) {
+      if (String(favorites[index].playerId || "") === playerId) removed = true
+      else next.push(favorites[index])
+    }
+    if (!removed) {
+      next.push({
+        playerId: playerId,
+        displayName: String(player.displayName || "Unknown player"),
+        team: String(player.team || ""),
+        position: String(player.position || "")
+      })
+    }
+    next.sort(function(left, right) {
+      return String(left.displayName).localeCompare(String(right.displayName))
+    })
+    favorites = next
+    if (_favoritesLoaded) favoritesSaveTimer.restart()
+    return !removed
+  }
+
+  function loadFavorites(raw) {
+    if (_favoritesLoaded) return
+    var loaded = []
+    try {
+      var parsed = raw ? JSON.parse(String(raw)) : null
+      var values = parsed && parsed.version === 1 && Array.isArray(parsed.favorites)
+        ? parsed.favorites : []
+      var seen = ({})
+      for (var index = 0; index < values.length; index++) {
+        var item = values[index]
+        if (!item || typeof item !== "object") continue
+        var playerId = String(item.playerId || "")
+        if (playerId === "" || seen[playerId]) continue
+        seen[playerId] = true
+        loaded.push({
+          playerId: playerId,
+          displayName: String(item.displayName || "Unknown player"),
+          team: String(item.team || ""),
+          position: String(item.position || "")
+        })
+      }
+    } catch (error) {
+      console.warn("fantasy-feed: favorites parse failed:", error)
+    }
+    favorites = loaded
+    _favoritesLoaded = true
+  }
+
+  function saveFavorites() {
+    favoritesFile.setText(JSON.stringify({version: 1, favorites: favorites}, null, 2) + "\n")
   }
 
   function pollSecondsFor(value, failed) {
@@ -200,6 +291,23 @@ Item {
     }
   }
 
+  Timer {
+    id: favoritesSaveTimer
+    interval: 200
+    repeat: false
+    onTriggered: root.saveFavorites()
+  }
+
+  FileView {
+    id: favoritesFile
+    path: root.favoritesPath
+    watchChanges: false
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.loadFavorites(text())
+    onLoadFailed: root.loadFavorites("")
+  }
+
   Process {
     id: feedProcess
     running: false
@@ -238,6 +346,7 @@ Item {
     pollTimer.stop()
     countdownTimer.stop()
     watchdog.stop()
+    favoritesSaveTimer.stop()
     if (feedProcess.running) feedProcess.running = false
   }
 
@@ -251,6 +360,8 @@ Item {
         stale: root.stale,
         sourceState: root.snapshot ? root.snapshot.sourceState : "unavailable",
         eventCount: root.events.length,
+        leaderboardCount: root.leaderboard.length,
+        favoriteCount: root.favoriteCount,
         lastUpdated: root.lastUpdated,
         lastError: root.lastError,
         nextPollSeconds: root.nextPollSeconds

@@ -17,6 +17,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
 SUMMARY_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={}"
+ROSTER_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/{}/roster"
 REQUEST_TIMEOUT_SECONDS = 5
 MAX_WORKERS = 8
 MAX_CANDIDATE_PLAYS = 40
@@ -26,6 +27,7 @@ USER_AGENT = "curl/8.17.0"
 
 _SCOREBOARD_LIMIT = 2 * 1024 * 1024
 _SUMMARY_LIMIT = 6 * 1024 * 1024
+_ROSTER_LIMIT = 2 * 1024 * 1024
 _PLAY_STATS_LIMIT = 512 * 1024
 _PRIVATE_STATS_HOST = "sports.core.api.espn.pvt"
 _PUBLIC_STATS_HOST = "sports.core.api.espn.com"
@@ -117,6 +119,12 @@ def _response_limit(url: str) -> int:
         query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
         if set(query) == {"event"} and len(query["event"]) == 1 and query["event"][0]:
             return _SUMMARY_LIMIT
+    if parsed.hostname == "site.api.espn.com" and re.fullmatch(
+        r"/apis/site/v2/sports/football/nfl/teams/[A-Za-z0-9_-]+/roster",
+        parsed.path,
+    ):
+        if not parsed.query:
+            return _ROSTER_LIMIT
     if parsed.hostname == _PUBLIC_STATS_HOST and _STATS_PATH.fullmatch(parsed.path):
         return _PLAY_STATS_LIMIT
     raise ProviderError("invalid_url", "ESPN request URL is outside the approved API boundary")
@@ -183,6 +191,47 @@ def summary_url(game_id: str) -> str:
     return SUMMARY_URL.format(urllib.parse.quote(game_id, safe=""))
 
 
+def roster_url(team_id: str) -> str:
+    if not team_id or not re.fullmatch(r"[A-Za-z0-9_-]+", team_id):
+        raise ProviderError("malformed_response", "team id cannot form a roster URL")
+    return ROSTER_URL.format(urllib.parse.quote(team_id, safe=""))
+
+
+def _extract_week(root: Mapping[str, Any]) -> dict[str, Any]:
+    season = _object(root.get("season"), "scoreboard.season")
+    week = _object(root.get("week"), "scoreboard.week")
+    season_year = _integral_number(season.get("year"), "scoreboard.season.year")
+    season_type = _integral_number(season.get("type"), "scoreboard.season.type")
+    week_number = _integral_number(week.get("number"), "scoreboard.week.number")
+    label = "Week " + str(week_number)
+    detail = ""
+    leagues = root.get("leagues", [])
+    if isinstance(leagues, list) and leagues and isinstance(leagues[0], Mapping):
+        calendar = leagues[0].get("calendar", [])
+        if isinstance(calendar, list):
+            for period in calendar:
+                if not isinstance(period, Mapping) or str(period.get("value", "")) != str(season_type):
+                    continue
+                entries = period.get("entries", [])
+                if not isinstance(entries, list):
+                    continue
+                for entry in entries:
+                    if not isinstance(entry, Mapping) or str(entry.get("value", "")) != str(week_number):
+                        continue
+                    if isinstance(entry.get("label"), str) and entry["label"]:
+                        label = entry["label"]
+                    if isinstance(entry.get("detail"), str):
+                        detail = entry["detail"]
+                    break
+    return {
+        "season": season_year,
+        "seasonType": season_type,
+        "number": week_number,
+        "label": label,
+        "detail": detail,
+    }
+
+
 def _team_abbreviation(competitor: Mapping[str, Any], path: str) -> str:
     team = _object(competitor.get("team"), f"{path}.team")
     return _string(team.get("abbreviation"), f"{path}.team.abbreviation")
@@ -192,6 +241,7 @@ def extract_scoreboard(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Extract normalized games and the game IDs eligible for summary requests."""
     root = _object(payload, "scoreboard")
     events = _array(root.get("events"), "scoreboard.events")
+    week = _extract_week(root)
     games: list[dict[str, Any]] = []
     summary_game_ids: list[str] = []
     provider_states: list[str] = []
@@ -233,6 +283,14 @@ def extract_scoreboard(payload: Mapping[str, Any]) -> dict[str, Any]:
             "startTime": _string(event.get("date"), f"{event_path}.date"),
             "away": _team_abbreviation(by_side["away"], f"{event_path}.away"),
             "home": _team_abbreviation(by_side["home"], f"{event_path}.home"),
+            "awayTeamId": _string(
+                _object(by_side["away"].get("team"), f"{event_path}.away.team").get("id"),
+                f"{event_path}.away.team.id",
+            ),
+            "homeTeamId": _string(
+                _object(by_side["home"].get("team"), f"{event_path}.home.team").get("id"),
+                f"{event_path}.home.team.id",
+            ),
             "awayScore": str(by_side["away"].get("score", "0")),
             "homeScore": str(by_side["home"].get("score", "0")),
             "detail": str(status_type.get("shortDetail", status_type.get("detail", state))),
@@ -251,6 +309,7 @@ def extract_scoreboard(payload: Mapping[str, Any]) -> dict[str, Any]:
         source_state = "idle"
     return {
         "sourceState": source_state,
+        "week": week,
         "games": sorted(games, key=lambda game: game["id"]),
         "summaryGameIds": sorted(set(summary_game_ids)),
     }
@@ -522,6 +581,229 @@ def extract_play_statistics(payload: Mapping[str, Any]) -> dict[str, int]:
     return dict(sorted(result.items()))
 
 
+_BOX_SCORE_STAT_MAP: Mapping[str, Mapping[str, str]] = {
+    "passing": {
+        "YDS": "passing_yards",
+        "TD": "passing_touchdown",
+        "INT": "interception_thrown",
+    },
+    "rushing": {
+        "YDS": "rushing_yards",
+        "TD": "rushing_touchdown",
+    },
+    "receiving": {
+        "REC": "reception",
+        "YDS": "receiving_yards",
+        "TD": "receiving_touchdown",
+    },
+    "fumbles": {"LOST": "fumble_lost"},
+}
+_FANTASY_POSITIONS = frozenset({"QB", "RB", "WR", "TE"})
+
+
+def _fantasy_position(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    position = value.upper()
+    if position in {"HB", "FB"}:
+        return "RB"
+    return position if position in _FANTASY_POSITIONS else ""
+
+
+def extract_leader_positions(payload: Mapping[str, Any]) -> dict[str, str]:
+    """Use summary leaders as a free position hint before requesting a roster."""
+    positions: dict[str, str] = {}
+    leaders = payload.get("leaders", [])
+    if not isinstance(leaders, list):
+        return positions
+    for team in leaders:
+        if not isinstance(team, Mapping) or not isinstance(team.get("leaders"), list):
+            continue
+        for category in team["leaders"]:
+            if not isinstance(category, Mapping) or not isinstance(category.get("leaders"), list):
+                continue
+            for entry in category["leaders"]:
+                if not isinstance(entry, Mapping) or not isinstance(entry.get("athlete"), Mapping):
+                    continue
+                athlete = entry["athlete"]
+                position = athlete.get("position", {})
+                normalized = _fantasy_position(
+                    position.get("abbreviation") if isinstance(position, Mapping) else ""
+                )
+                player_id = athlete.get("id")
+                if normalized and isinstance(player_id, str) and player_id:
+                    positions[player_id] = normalized
+    return positions
+
+
+def extract_roster_positions(payload: Mapping[str, Any]) -> dict[str, str]:
+    root = _object(payload, "roster")
+    groups = _array(root.get("athletes"), "roster.athletes")
+    positions: dict[str, str] = {}
+    for group_index, group_value in enumerate(groups):
+        group = _object(group_value, f"roster.athletes[{group_index}]")
+        items = _array(group.get("items"), f"roster.athletes[{group_index}].items")
+        for item_index, item_value in enumerate(items):
+            path = f"roster.athletes[{group_index}].items[{item_index}]"
+            item = _object(item_value, path)
+            position = item.get("position", {})
+            normalized = _fantasy_position(
+                position.get("abbreviation") if isinstance(position, Mapping) else ""
+            )
+            if not normalized:
+                continue
+            player_id = _string(item.get("id"), f"{path}.id")
+            known = positions.get(player_id)
+            if known is not None and known != normalized:
+                raise ProviderError(
+                    "malformed_response", f"athlete {player_id} has conflicting roster positions"
+                )
+            positions[player_id] = normalized
+    return positions
+
+
+def extract_weekly_players(
+    payload: Mapping[str, Any], game: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """Extract complete supported player totals from one structured box score."""
+    boxscore = _object(payload.get("boxscore"), "summary.boxscore")
+    player_groups = _array(boxscore.get("players"), "summary.boxscore.players")
+    game_id = _string(game.get("id"), "game.id")
+    rows: dict[str, dict[str, Any]] = {}
+    for group_index, group_value in enumerate(player_groups):
+        group_path = f"summary.boxscore.players[{group_index}]"
+        group = _object(group_value, group_path)
+        team = _object(group.get("team"), f"{group_path}.team")
+        team_id = _string(team.get("id"), f"{group_path}.team.id")
+        abbreviation = _string(team.get("abbreviation"), f"{group_path}.team.abbreviation")
+        statistics = _array(group.get("statistics"), f"{group_path}.statistics")
+        for statistic_index, statistic_value in enumerate(statistics):
+            statistic_path = f"{group_path}.statistics[{statistic_index}]"
+            statistic = _object(statistic_value, statistic_path)
+            name = statistic.get("name")
+            mapping = _BOX_SCORE_STAT_MAP.get(name) if isinstance(name, str) else None
+            if mapping is None:
+                continue
+            labels = _array(statistic.get("labels"), f"{statistic_path}.labels")
+            label_indexes = {
+                label: index for index, label in enumerate(labels) if isinstance(label, str)
+            }
+            for required_label in mapping:
+                if required_label not in label_indexes:
+                    raise ProviderError(
+                        "malformed_response",
+                        f"{statistic_path}.labels lacks {required_label}",
+                    )
+            entries = _array(statistic.get("athletes"), f"{statistic_path}.athletes")
+            for entry_index, entry_value in enumerate(entries):
+                entry_path = f"{statistic_path}.athletes[{entry_index}]"
+                entry = _object(entry_value, entry_path)
+                athlete = _object(entry.get("athlete"), f"{entry_path}.athlete")
+                player_id = _string(athlete.get("id"), f"{entry_path}.athlete.id")
+                display_name = _string(
+                    athlete.get("displayName"), f"{entry_path}.athlete.displayName"
+                )
+                values = _array(entry.get("stats"), f"{entry_path}.stats")
+                row = rows.setdefault(
+                    player_id,
+                    {
+                        "playerId": player_id,
+                        "displayName": display_name,
+                        "team": abbreviation,
+                        "teamId": team_id,
+                        "gameIds": [game_id],
+                        "stats": {},
+                    },
+                )
+                if row["displayName"] != display_name or row["team"] != abbreviation:
+                    raise ProviderError(
+                        "malformed_response", f"athlete {player_id} conflicts within a box score"
+                    )
+                for provider_label, normalized_name in mapping.items():
+                    value_index = label_indexes[provider_label]
+                    if value_index >= len(values):
+                        raise ProviderError(
+                            "malformed_response", f"{entry_path}.stats is shorter than labels"
+                        )
+                    raw_value = values[value_index]
+                    try:
+                        amount = int(str(raw_value))
+                    except (TypeError, ValueError) as error:
+                        raise ProviderError(
+                            "malformed_response",
+                            f"{entry_path}.stats[{value_index}] must be an integer string",
+                        ) from error
+                    if normalized_name == "fumble_lost":
+                        row["stats"][normalized_name] = max(
+                            amount, int(row["stats"].get(normalized_name, 0))
+                        )
+                    else:
+                        row["stats"][normalized_name] = (
+                            int(row["stats"].get(normalized_name, 0)) + amount
+                        )
+    return sorted(rows.values(), key=lambda row: (row["team"], row["playerId"]))
+
+
+def _previous_positions(snapshot: Mapping[str, Any] | None) -> dict[str, str]:
+    positions: dict[str, str] = {}
+    if not isinstance(snapshot, Mapping) or not isinstance(snapshot.get("leaderboard"), list):
+        return positions
+    for row in snapshot["leaderboard"]:
+        if not isinstance(row, Mapping):
+            continue
+        player_id = row.get("playerId")
+        position = _fantasy_position(row.get("position"))
+        if isinstance(player_id, str) and player_id and position:
+            positions[player_id] = position
+    return positions
+
+
+def _aggregate_weekly_players(
+    game_rows: Sequence[Mapping[str, Any]], positions: Mapping[str, str]
+) -> list[dict[str, Any]]:
+    players: dict[str, dict[str, Any]] = {}
+    for raw in game_rows:
+        player_id = str(raw["playerId"])
+        position = positions.get(player_id, "")
+        if position not in _FANTASY_POSITIONS:
+            continue
+        known = players.get(player_id)
+        if known is None:
+            known = {
+                "playerId": player_id,
+                "displayName": str(raw["displayName"]),
+                "team": str(raw["team"]),
+                "position": position,
+                "gameIds": set(),
+                "stats": {},
+            }
+            players[player_id] = known
+        if (
+            known["displayName"] != raw["displayName"]
+            or known["team"] != raw["team"]
+            or known["position"] != position
+        ):
+            raise ProviderError(
+                "malformed_response", f"athlete {player_id} conflicts across weekly games"
+            )
+        known["gameIds"].update(raw["gameIds"])
+        for key, value in raw["stats"].items():
+            known["stats"][key] = int(known["stats"].get(key, 0)) + int(value)
+    result: list[dict[str, Any]] = []
+    for player in players.values():
+        result.append(
+            {
+                "playerId": player["playerId"],
+                "displayName": player["displayName"],
+                "team": player["team"],
+                "position": player["position"],
+                "games": len(player["gameIds"]),
+                "stats": dict(sorted(player["stats"].items())),
+            }
+        )
+    return sorted(result, key=lambda row: (row["position"], row["team"], row["playerId"]))
+
+
 def _fetch_many(urls: Sequence[str], get_json: GetJson) -> dict[str, Mapping[str, Any]]:
     unique_urls = tuple(sorted(set(urls)))
     if not unique_urls:
@@ -585,8 +867,11 @@ def collect_live(
 
     athletes_by_id: dict[str, dict[str, str]] = {}
     extracted_plays: list[dict[str, Any]] = []
+    weekly_game_rows: list[dict[str, Any]] = []
+    positions = _previous_positions(previous_snapshot)
     for game_id in scoreboard["summaryGameIds"]:
         payload = summaries[summary_url(game_id)]
+        positions.update(extract_leader_positions(payload))
         for athlete in extract_athletes(payload):
             known = athletes_by_id.get(athlete["id"])
             if known is not None and known != athlete:
@@ -595,6 +880,21 @@ def collect_live(
                 )
             athletes_by_id[athlete["id"]] = athlete
         extracted_plays.extend(extract_plays(payload, games_by_id[game_id]))
+        weekly_game_rows.extend(extract_weekly_players(payload, games_by_id[game_id]))
+
+    missing_team_ids = sorted(
+        {
+            str(row["teamId"])
+            for row in weekly_game_rows
+            if str(row["playerId"]) not in positions
+        }
+    )
+    roster_payloads = _fetch_many(
+        [roster_url(team_id) for team_id in missing_team_ids], request_json
+    )
+    for team_id in missing_team_ids:
+        positions.update(extract_roster_positions(roster_payloads[roster_url(team_id)]))
+    weekly_players = _aggregate_weekly_players(weekly_game_rows, positions)
 
     known_revisions = _known_source_revisions(previous_snapshot)
     supported: list[dict[str, Any]] = []
@@ -635,7 +935,9 @@ def collect_live(
                 "observedAt": timestamp,
                 "sourceState": scoreboard["sourceState"],
                 "stale": False,
+                "week": scoreboard["week"],
                 "games": games,
+                "weeklyPlayers": weekly_players,
                 "plays": frame_plays,
             }
         ],

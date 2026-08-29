@@ -82,6 +82,37 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual(1, ids.count("athlete-1"))
         self.assertEqual("CLE", next(a for a in athletes if a["id"] == "athlete-3")["team"])
 
+    def test_week_and_full_boxscore_totals_are_normalized(self):
+        scoreboard = espn.extract_scoreboard(SCOREBOARD)
+        self.assertEqual(
+            {"season": 2026, "seasonType": 2, "number": 1, "label": "Week 1", "detail": "Sep 6-15"},
+            scoreboard["week"],
+        )
+        self.assertEqual("22", scoreboard["games"][0]["awayTeamId"])
+        self.assertEqual("33", scoreboard["games"][0]["homeTeamId"])
+        rows = espn.extract_weekly_players(SUMMARY, scoreboard["games"][0])
+        huntley = next(row for row in rows if row["playerId"] == "athlete-1")
+        self.assertEqual(
+            {"passing_yards": 100, "passing_touchdown": 1, "interception_thrown": 0, "reception": 1, "receiving_yards": 5, "receiving_touchdown": 0},
+            huntley["stats"],
+        )
+        self.assertEqual({"athlete-1": "QB", "athlete-3": "WR"}, espn.extract_leader_positions(SUMMARY))
+
+    def test_roster_positions_keep_only_supported_fantasy_positions(self):
+        roster = {
+            "athletes": [
+                {
+                    "position": "offense",
+                    "items": [
+                        {"id": "qb", "position": {"abbreviation": "QB"}},
+                        {"id": "fullback", "position": {"abbreviation": "FB"}},
+                        {"id": "center", "position": {"abbreviation": "C"}},
+                    ],
+                }
+            ]
+        }
+        self.assertEqual({"qb": "QB", "fullback": "RB"}, espn.extract_roster_positions(roster))
+
     def test_exact_statistics_mapping_ignores_scoring_and_kicking(self):
         self.assertEqual(
             {"passing_yards": 18, "reception": 1, "receiving_yards": 18},
@@ -190,6 +221,8 @@ class OrchestrationTests(unittest.TestCase):
         supported = fixture["frames"][0]["plays"][0]
         self.assertEqual(120, supported["sequenceNumber"])
         self.assertEqual(18, supported["officialStats"]["passing_yards"])
+        self.assertEqual("Week 1", fixture["frames"][0]["week"]["label"])
+        self.assertEqual(2, len(fixture["frames"][0]["weeklyPlayers"]))
         self.assertNotIn("_statisticsUrl", supported)
         self.assertEqual(
             [espn.SCOREBOARD_URL, espn.summary_url("game-1"), STATS_URL],

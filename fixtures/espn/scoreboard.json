@@ -1,4 +1,18 @@
 {
+  "season": {"type": 2, "year": 2026},
+  "week": {"number": 1},
+  "leagues": [
+    {
+      "calendar": [
+        {
+          "value": "2",
+          "entries": [
+            {"value": "1", "label": "Week 1", "detail": "Sep 6-15"}
+          ]
+        }
+      ]
+    }
+  ],
   "events": [
     {
       "id": "game-1",

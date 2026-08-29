@@ -122,7 +122,23 @@
       ]
     },
     {
-      "observedAt": "2026-08-28T20:11:00Z", "sourceState": "live", "stale": false, "games": [], "plays": []
+      "observedAt": "2026-08-28T20:11:00Z", "sourceState": "live", "stale": false,
+      "week": {"season": 2026, "seasonType": 1, "number": 4, "label": "Preseason Week 3", "detail": "Aug 27-Sep 5"},
+      "weeklyPlayers": [
+        {
+          "playerId": "athlete-1", "displayName": "Tyler Huntley", "team": "CLE", "position": "QB", "games": 1,
+          "stats": {"passing_yards": 28, "interception_thrown": 1, "passing_two_point_conversion": 1}
+        },
+        {
+          "playerId": "athlete-2", "displayName": "Jahmal Cuevas", "team": "CLE", "position": "WR", "games": 1,
+          "stats": {"reception": 2, "receiving_yards": 28, "receiving_two_point_conversion": 1, "fumble_lost": 1}
+        },
+        {
+          "playerId": "athlete-4", "displayName": "Rasheen Ali", "team": "CLE", "position": "RB", "games": 1,
+          "stats": {"rushing_yards": -2}
+        }
+      ],
+      "games": [], "plays": []
     }
   ]
 }

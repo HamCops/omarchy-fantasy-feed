@@ -18,8 +18,12 @@ publication steps that require operator review.
 - [ ] Install from the committed local clone with
   `omarchy plugin add "file://$PWD" --enable --yes`.
 - [ ] Confirm live, scheduled/final, demo, and stale-cache states.
-- [ ] Confirm left click, middle-click refresh, panel buttons, and every
+- [ ] Confirm automatic refresh countdown and that compact panel plus
+  standalone window share one helper process.
+- [ ] Confirm left click, middle-click refresh, pop-out, panel buttons, and every
   documented key.
+- [ ] Confirm PPR/standard sorting, all four position filters, favorite
+  persistence after shell restart, and favorites-only feed filtering.
 - [ ] Confirm two monitors share one helper process while keeping independent
   panel selection/scroll.
 - [ ] Check horizontal and vertical bars under two Omarchy themes for QML
@@ -36,7 +40,9 @@ publication steps that require operator review.
    render HTML, generate a mockup, or composite provider/team artwork.
 4. Crop only empty desktop space, preserve the bar and panel relationship, and
    check text at repository-preview scale.
-5. Save the approved capture as `preview.png`, update the README preview slot
+5. Capture the standalone leaderboard as a second proof image if competition
+   rules permit more than one preview.
+6. Save the approved capture as `preview.png`, update the README preview slot
    to embed it, and verify that no private notification or account data appears.
 
 ## Publication gate
@@ -47,4 +53,4 @@ publication steps that require operator review.
   submission copy.
 - [ ] Replace the generic install URL only after the public repository exists.
 - [ ] Repeat the automated and runtime gates from a clean checkout.
-- [ ] Tag `v0.1.0` only after every release gate passes.
+- [ ] Tag `v0.2.0` only after every release gate passes.

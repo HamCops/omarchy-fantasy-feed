@@ -2,18 +2,21 @@
   "schemaVersion": 1,
   "id": "tdh.fantasy-feed",
   "name": "Fantasy Feed",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Tom Hammond",
   "license": "MIT",
   "description": "Live NFL plays with PPR and standard fantasy scoring.",
   "kinds": [
     "service",
-    "bar-widget"
+    "bar-widget",
+    "panel"
   ],
   "entryPoints": {
     "service": "Service.qml",
-    "barWidget": "BarWidget.qml"
+    "barWidget": "BarWidget.qml",
+    "panel": "Standalone.qml"
   },
+  "keepLoaded": true,
   "barWidget": {
     "displayName": "Fantasy Feed",
     "description": "Fantasy-relevant NFL plays with scoring deltas.",

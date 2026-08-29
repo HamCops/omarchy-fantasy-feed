@@ -260,6 +260,30 @@ class ReducerTests(unittest.TestCase):
         }
         self.assertEqual(expected, actual)
 
+    def test_weekly_leaderboard_uses_the_shared_scoring_table(self):
+        snapshot = feed.reduce_frames(self.demo)
+        self.assertEqual("Preseason Week 3", snapshot["week"]["label"])
+        leaders = {row["playerId"]: row for row in snapshot["leaderboard"]}
+        self.assertEqual({"athlete-1", "athlete-2", "athlete-4"}, set(leaders))
+        self.assertEqual({"ppr": 4.8, "standard": 2.8}, leaders["athlete-2"]["points"])
+        self.assertEqual({"ppr": -0.2, "standard": -0.2}, leaders["athlete-4"]["points"])
+
+    def test_new_week_resets_prior_feed_and_leaderboard(self):
+        first = feed.reduce_frames(self.demo)
+        next_frame = {
+            "observedAt": "2026-09-07T00:00:00Z",
+            "sourceState": "scheduled",
+            "stale": False,
+            "week": {"season": 2026, "seasonType": 2, "number": 1, "label": "Week 1", "detail": ""},
+            "weeklyPlayers": [],
+            "games": [],
+            "plays": [],
+        }
+        result = feed.reconcile_frame(first, self.demo["athletes"], next_frame)
+        self.assertEqual([], result["events"])
+        self.assertEqual([], result["leaderboard"])
+        self.assertEqual("Week 1", result["week"]["label"])
+
     def test_events_and_skips_are_bounded(self):
         snapshot = feed.reduce_frames(self.demo, event_cap=2, skipped_cap=1)
         self.assertEqual(2, len(snapshot["events"]))
