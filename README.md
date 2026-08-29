@@ -123,7 +123,8 @@ sports.
 Weekly leaderboard totals come from complete structured game box scores rather
 than the bounded play feed. ESPN roster metadata is used only to assign the
 QB/RB/WR/TE grouping. Favorites are stored locally in
-`~/.config/omarchy/fantasy-feed.json`; no fantasy account is required.
+`$XDG_CONFIG_HOME/omarchy/fantasy-feed.json` (normally
+`~/.config/omarchy/fantasy-feed.json`); no fantasy account is required.
 
 ## Reliability and corrections
 

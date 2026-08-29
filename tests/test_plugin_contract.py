@@ -67,6 +67,7 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn("FileView {", self.source)
         self.assertIn("atomicWrites: true", self.source)
         self.assertIn("fantasy-feed.json", self.source)
+        self.assertIn('Quickshell.env("XDG_CONFIG_HOME")', self.source)
         self.assertIn("function toggleFavorite(player)", self.source)
         self.assertIn("readonly property var favoriteEvents", self.source)
 

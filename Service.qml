@@ -47,7 +47,9 @@ Item {
   property bool _refreshAfterExit: false
   property bool _favoritesLoaded: false
 
-  readonly property string favoritesPath: Quickshell.env("HOME") + "/.config/omarchy/fantasy-feed.json"
+  readonly property string configHome: String(Quickshell.env("XDG_CONFIG_HOME") || "").startsWith("/")
+    ? Quickshell.env("XDG_CONFIG_HOME") : Quickshell.env("HOME") + "/.config"
+  readonly property string favoritesPath: configHome + "/omarchy/fantasy-feed.json"
 
   readonly property int livePollSeconds: 30
   readonly property int scheduledPollSeconds: 60
