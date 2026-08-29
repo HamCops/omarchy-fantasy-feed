@@ -12,7 +12,7 @@ BarWidget {
   readonly property var feedService: bar && bar.shell
     ? bar.shell.serviceFor("tdh.fantasy-feed")
     : null
-  readonly property var latestEvent: feedService ? feedService.latestEvent : null
+  readonly property var latestEvent: feedService ? feedService.latestVisibleEvent : null
   readonly property bool feedLoading: feedService ? feedService.loading === true : false
   readonly property bool feedStale: feedService ? feedService.stale === true : false
 
@@ -30,8 +30,8 @@ BarWidget {
 
   function barLabel() {
     var label = statusLabel()
-    if (feedService && feedService.events.length > 0)
-      label += " · " + feedService.events.length + " PLAYS"
+    if (feedService && feedService.visibleEvents.length > 0)
+      label += " · " + feedService.visibleEvents.length + " PLAYS"
     if (feedService && feedService.favoriteCount > 0)
       label += " · ★" + feedService.favoriteCount
     return label

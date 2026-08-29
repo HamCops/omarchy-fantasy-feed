@@ -267,6 +267,7 @@ class ReducerTests(unittest.TestCase):
         self.assertEqual({"athlete-1", "athlete-2", "athlete-4"}, set(leaders))
         self.assertEqual({"ppr": 4.8, "standard": 2.8}, leaders["athlete-2"]["points"])
         self.assertEqual({"ppr": -0.2, "standard": -0.2}, leaders["athlete-4"]["points"])
+        self.assertEqual(["401873302"], leaders["athlete-2"]["gameIds"])
 
     def test_new_week_resets_prior_feed_and_leaderboard(self):
         first = feed.reduce_frames(self.demo)

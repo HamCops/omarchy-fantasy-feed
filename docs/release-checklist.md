@@ -23,7 +23,8 @@ publication steps that require operator review.
 - [ ] Confirm left click, middle-click refresh, pop-out, panel buttons, and every
   documented key.
 - [ ] Confirm PPR/standard sorting, all four position filters, favorite
-  persistence after shell restart, and favorites-only feed filtering.
+  persistence after shell restart, favorites-only feed filtering, and arbitrary
+  multi-game selection shared by every view.
 - [ ] Confirm two monitors share one helper process while keeping independent
   panel selection/scroll.
 - [ ] Check horizontal and vertical bars under two Omarchy themes for QML
@@ -53,4 +54,4 @@ publication steps that require operator review.
   submission copy.
 - [ ] Replace the generic install URL only after the public repository exists.
 - [ ] Repeat the automated and runtime gates from a clean checkout.
-- [ ] Tag `v0.2.0` only after every release gate passes.
+- [ ] Tag `v0.3.0` only after every release gate passes.

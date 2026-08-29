@@ -71,8 +71,7 @@ collection does the following:
 1. Fetches the NFL scoreboard and normalizes game/status metadata.
 2. Fetches eligible game summaries concurrently with at most eight workers.
 3. Extracts stable athlete IDs from boxscore statistics, complete supported
-   weekly player totals, and plays from drive
-   summaries.
+   weekly player totals, and plays from completed plus current drive summaries.
 4. Resolves QB/RB/WR/TE positions from free summary hints, the last-good
    leaderboard, then only the still-needed team roster endpoints.
 5. Selects only known fantasy candidate types plus a bounded diagnostic sample.
@@ -225,6 +224,12 @@ marks corrected and voided lifecycle states. Arrow keys and `j`/`k` move the
 monitor-local selection, `r` refreshes, `d` switches demo/live, `o` opens the
 standalone window, and `Esc` closes.
 
+`GameSelector.qml` is a shared presentation component for the compact and
+standalone surfaces. The singleton service owns a set of hidden game IDs and
+derives selected event and favorite-event views, so toggling any combination of
+matchups immediately stays in sync across windows and the bar. Weekly player
+rows retain their game IDs so the same selection also filters the leaderboard.
+
 `Standalone.qml` owns an ordinary `FloatingWindow`, so Hyprland can move, tile,
 or place it like another app instead of covering the current workspace as a
 transient bar popup. It presents feed, leaderboard, and favorite-feed tabs.
@@ -244,7 +249,7 @@ omarchy plugin validate "$PWD"
 git diff --check
 ```
 
-On 2026-08-29 this checkout passed all 69 tests and
+On 2026-08-29 this checkout passed all 73 tests and
 `omarchy plugin validate "$PWD"`.
 
 The current suite covers every scoring row, stable identity resolution,

@@ -75,6 +75,37 @@ class ExtractionTests(unittest.TestCase):
         play = espn.extract_plays(summary, game)[0]
         self.assertEqual(raw_play["modified"], play["wallclock"])
 
+    def test_current_drive_plays_are_extracted_before_the_drive_completes(self):
+        summary = copy.deepcopy(SUMMARY)
+        current_play = copy.deepcopy(summary["drives"]["previous"][0]["plays"][0])
+        current_play["id"] = "play-current"
+        current_play["sequenceNumber"] = "122"
+        current_play["text"] = "T.Huntley pass complete to J.Cuevas for 9 yards."
+        current_play["statYardage"] = 9
+        summary["drives"]["current"] = {"plays": [current_play]}
+        game = espn.extract_scoreboard(SCOREBOARD)["games"][0]
+
+        plays = espn.extract_plays(summary, game)
+
+        self.assertIn("play-current", [play["id"] for play in plays])
+        current = next(play for play in plays if play["id"] == "play-current")
+        self.assertEqual(122, current["sequenceNumber"])
+
+    def test_current_to_previous_drive_overlap_keeps_only_current_revision(self):
+        summary = copy.deepcopy(SUMMARY)
+        current_play = copy.deepcopy(summary["drives"]["previous"][0]["plays"][0])
+        current_play["text"] = "T.Huntley pass complete to J.Cuevas for 19 yards."
+        current_play["statYardage"] = 19
+        current_play["modified"] = "2026-08-28T20:16:30Z"
+        summary["drives"]["current"] = {"plays": [current_play]}
+        game = espn.extract_scoreboard(SCOREBOARD)["games"][0]
+
+        plays = espn.extract_plays(summary, game)
+
+        overlapping = [play for play in plays if play["id"] == current_play["id"]]
+        self.assertEqual(1, len(overlapping))
+        self.assertEqual(19, overlapping[0]["statYardage"])
+
     def test_boxscore_athletes_are_unique_by_stable_id(self):
         athletes = espn.extract_athletes(SUMMARY)
         ids = [athlete["id"] for athlete in athletes]
@@ -96,6 +127,7 @@ class ExtractionTests(unittest.TestCase):
             {"passing_yards": 100, "passing_touchdown": 1, "interception_thrown": 0, "reception": 1, "receiving_yards": 5, "receiving_touchdown": 0},
             huntley["stats"],
         )
+        self.assertEqual(["game-1"], huntley["gameIds"])
         self.assertEqual({"athlete-1": "QB", "athlete-3": "WR"}, espn.extract_leader_positions(SUMMARY))
 
     def test_roster_positions_keep_only_supported_fantasy_positions(self):
@@ -223,6 +255,9 @@ class OrchestrationTests(unittest.TestCase):
         self.assertEqual(18, supported["officialStats"]["passing_yards"])
         self.assertEqual("Week 1", fixture["frames"][0]["week"]["label"])
         self.assertEqual(2, len(fixture["frames"][0]["weeklyPlayers"]))
+        self.assertEqual(
+            ["game-1"], fixture["frames"][0]["weeklyPlayers"][0]["gameIds"]
+        )
         self.assertNotIn("_statisticsUrl", supported)
         self.assertEqual(
             [espn.SCOREBOARD_URL, espn.summary_url("game-1"), STATS_URL],
