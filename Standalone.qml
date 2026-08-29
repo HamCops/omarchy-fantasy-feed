@@ -102,6 +102,10 @@ Item {
     return number > 0 ? positivePoints : negativePoints
   }
 
+  function scoringLabel() {
+    return scoringMode === "ppr" ? "PPR" : "STD"
+  }
+
   function statLabels(stats) {
     if (!stats || stats.length === undefined || stats.length === 0) return "NO STAT DELTA"
     var labels = []
@@ -280,7 +284,7 @@ Item {
           spacing: Style.space(6)
 
           Button {
-            text: root.scoringMode === "ppr" ? "PPR ▼" : "STANDARD ▼"
+            text: root.scoringLabel() + " ▼"
             tooltipText: "Sort by " + (root.scoringMode === "ppr" ? "standard" : "PPR") + " points (p)"
             foreground: root.foreground
             fontFamily: root.fontFamily
@@ -600,7 +604,7 @@ Item {
                 anchors.right: favoriteButton.left
                 anchors.rightMargin: Style.space(10)
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.signedPoints(leaderRow.selectedPoints) + " " + root.scoringMode.toUpperCase()
+                text: root.signedPoints(leaderRow.selectedPoints) + " " + root.scoringLabel()
                 color: root.pointsColor(leaderRow.selectedPoints)
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body

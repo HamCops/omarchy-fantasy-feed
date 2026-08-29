@@ -197,6 +197,8 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn('placeholderText: "Search player or team…  /"', self.standalone)
         self.assertIn("searchable.indexOf(playerSearch)", self.standalone)
         self.assertIn("Qt.Key_Slash", self.standalone)
+        self.assertIn('return scoringMode === "ppr" ? "PPR" : "STD"', self.standalone)
+        self.assertIn('root.signedPoints(leaderRow.selectedPoints) + " " + root.scoringLabel()', self.standalone)
         self.assertIn("stats.length === undefined", self.standalone)
         self.assertNotRegex(self.standalone, r"(?m)^\s*(Process|Timer)\s*\{")
 
