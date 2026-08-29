@@ -1,0 +1,50 @@
+{
+  "splits": {
+    "categories": [
+      {
+        "name": "passing",
+        "stats": [
+          {
+            "name": "passingYards",
+            "value": 18
+          },
+          {
+            "name": "passingTouchdowns",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "name": "receiving",
+        "stats": [
+          {
+            "name": "receptions",
+            "value": 1
+          },
+          {
+            "name": "receivingYards",
+            "value": 18
+          }
+        ]
+      },
+      {
+        "name": "scoring",
+        "stats": [
+          {
+            "name": "touchdowns",
+            "value": 7
+          }
+        ]
+      },
+      {
+        "name": "kicking",
+        "stats": [
+          {
+            "name": "kickExtraPointsMade",
+            "value": 1
+          }
+        ]
+      }
+    ]
+  }
+}

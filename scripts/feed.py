@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence, TypeAlias
+
+import espn
 
 
 SCHEMA_VERSION = 1
@@ -73,6 +78,7 @@ class PlayerDelta:
 class AttributedPlay:
     key: PlayKey
     revision: str
+    source_revision: str
     provider_modified: str
     semantic_hash: str
     sequence: int
@@ -92,6 +98,7 @@ class AttributedPlay:
 class RejectedPlay:
     key: PlayKey
     revision: str
+    source_revision: str
     provider_modified: str
     semantic_hash: str
     sequence: int
@@ -535,10 +542,43 @@ def _semantic_hash(raw: Mapping[str, Any]) -> str:
             "noPlay",
             "statYardage",
             "officialStats",
+            "providerRejectReason",
         )
     }
     encoded = json.dumps(semantic, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _source_revision(raw: Mapping[str, Any], modified: str) -> str:
+    provider_revision = raw.get("providerRevision")
+    if provider_revision is not None:
+        return _required_string(provider_revision, "play.providerRevision")
+    semantic = {
+        key: raw.get(key)
+        for key in (
+            "provider",
+            "gameId",
+            "id",
+            "sequenceNumber",
+            "type",
+            "text",
+            "period",
+            "clock",
+            "wallclock",
+            "away",
+            "home",
+            "offenseTeam",
+            "scoringPlay",
+            "isPenalty",
+            "isTurnover",
+            "noPlay",
+            "statYardage",
+            "providerRejectReason",
+        )
+    }
+    encoded = json.dumps(semantic, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
+    return f"{modified}:{digest}"
 
 
 def _common_fields(raw: Mapping[str, Any]) -> dict[str, Any]:
@@ -552,6 +592,7 @@ def _common_fields(raw: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "key": key,
         "revision": f"{modified}:{semantic_hash[:16]}",
+        "source_revision": _source_revision(raw, modified),
         "provider_modified": modified,
         "semantic_hash": semantic_hash,
         "sequence": _required_int(raw.get("sequenceNumber"), "play.sequenceNumber"),
@@ -663,6 +704,11 @@ def parse_play(raw: Mapping[str, Any], athlete_index: AthleteIndex) -> PlayResul
 
     if raw.get("noPlay") is True and raw.get("isPenalty") is True:
         return _rejected(common, "no_play_penalty")
+    provider_rejection = raw.get("providerRejectReason")
+    if provider_rejection is not None:
+        return _rejected(
+            common, _required_string(provider_rejection, "play.providerRejectReason")
+        )
     if "LATERAL" in text.upper():
         return _rejected(common, "ambiguous_lateral")
 
@@ -738,6 +784,9 @@ def _event_json(
         "gameId": play.key.game_id,
         "playId": play.key.play_id,
         "revision": play.revision,
+        "sourceRevision": play.source_revision,
+        "providerModified": play.provider_modified,
+        "semanticHash": play.semantic_hash,
         "sequence": play.sequence,
         "lifecycle": lifecycle,
         "quarter": play.quarter,
@@ -765,6 +814,9 @@ def _voided_event(
         "gameId": rejected.key.game_id,
         "playId": rejected.key.play_id,
         "revision": rejected.revision,
+        "sourceRevision": rejected.source_revision,
+        "providerModified": rejected.provider_modified,
+        "semanticHash": rejected.semantic_hash,
         "previousRevision": previous_revision,
         "sequence": rejected.sequence,
         "lifecycle": "voided",
@@ -789,6 +841,9 @@ def _skipped_json(play: RejectedPlay) -> dict[str, Any]:
         "gameId": play.key.game_id,
         "playId": play.key.play_id,
         "revision": play.revision,
+        "sourceRevision": play.source_revision,
+        "providerModified": play.provider_modified,
+        "semanticHash": play.semantic_hash,
         "sequence": play.sequence,
         "rawText": play.raw_text,
         "reason": play.reason,
@@ -823,59 +878,84 @@ def _validated_frames(fixture: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     return frames
 
 
-def reduce_frames(
-    fixture: Mapping[str, Any],
-    at: int | None = None,
+def _normalized_item_key(item: Mapping[str, Any]) -> PlayKey:
+    return PlayKey(
+        _required_string(item.get("provider"), "snapshot item.provider"),
+        _required_string(item.get("gameId"), "snapshot item.gameId"),
+        _required_string(item.get("playId"), "snapshot item.playId"),
+    )
+
+
+def reconcile_frame(
+    previous_snapshot: Mapping[str, Any] | None,
+    athletes: Any,
+    frame: Mapping[str, Any],
+    *,
     event_cap: int = DEFAULT_EVENT_CAP,
     skipped_cap: int = DEFAULT_SKIPPED_CAP,
 ) -> dict[str, Any]:
-    """Replay fixture frames into one bounded, deterministic snapshot."""
-    frames = _validated_frames(fixture)
-    athlete_index = build_athlete_index(fixture.get("athletes"))
-    if at is None:
-        at = len(frames) - 1
-    if isinstance(at, bool) or not isinstance(at, int) or at < 0 or at >= len(frames):
-        raise FixtureError("frame index is outside fixture.frames")
+    """Merge one partial provider frame without treating absence as deletion."""
+    _validated_frames({"fixtureVersion": 1, "frames": [frame]})
+    athlete_index = build_athlete_index(athletes)
     if event_cap < 1 or skipped_cap < 1:
         raise ValueError("snapshot caps must be positive")
 
-    latest_revision: dict[PlayKey, str] = {}
+    previous = previous_snapshot if isinstance(previous_snapshot, Mapping) else {}
     active_events: dict[PlayKey, dict[str, Any]] = {}
-    games: dict[str, Mapping[str, Any]] = {}
+    latest_revision: dict[PlayKey, str] = {}
+    games: dict[str, dict[str, Any]] = {}
     skipped: list[dict[str, Any]] = []
-    errors: list[dict[str, Any]] = []
 
-    for frame_index, frame in enumerate(frames[: at + 1]):
-        for game in frame.get("games", []):
-            if not isinstance(game, Mapping):
-                raise FixtureError(f"fixture.frames[{frame_index}].games contains a non-object")
-            game_id = _required_string(game.get("id"), "game.id")
-            games[game_id] = dict(game)
+    for game in previous.get("games", []):
+        if not isinstance(game, Mapping):
+            raise FixtureError("snapshot.games contains a non-object")
+        game_id = _required_string(game.get("id"), "game.id")
+        games[game_id] = dict(game)
+    for item in previous.get("skipped", []):
+        if not isinstance(item, Mapping):
+            raise FixtureError("snapshot.skipped contains a non-object")
+        copied = dict(item)
+        skipped.append(copied)
+        latest_revision[_normalized_item_key(copied)] = _required_string(
+            copied.get("revision"), "snapshot skipped.revision"
+        )
+    for item in previous.get("events", []):
+        if not isinstance(item, Mapping):
+            raise FixtureError("snapshot.events contains a non-object")
+        copied = copy.deepcopy(dict(item))
+        key = _normalized_item_key(copied)
+        active_events[key] = copied
+        latest_revision[key] = _required_string(
+            copied.get("revision"), "snapshot event.revision"
+        )
 
-        for play_index, raw in enumerate(frame.get("plays", [])):
-            try:
-                result = parse_play(raw, athlete_index)
-            except FixtureError as error:
-                raise FixtureError(
-                    f"fixture.frames[{frame_index}].plays[{play_index}]: {error}"
-                ) from error
-            previous_revision = latest_revision.get(result.key)
-            if previous_revision == result.revision:
-                continue
+    for game in frame.get("games", []):
+        if not isinstance(game, Mapping):
+            raise FixtureError("fixture frame games contains a non-object")
+        game_id = _required_string(game.get("id"), "game.id")
+        games[game_id] = dict(game)
 
-            prior_event = active_events.get(result.key)
-            if isinstance(result, AttributedPlay):
-                lifecycle = "corrected" if previous_revision is not None else "current"
-                active_events[result.key] = _event_json(result, lifecycle, previous_revision)
-            else:
-                skipped.append(_skipped_json(result))
-                if prior_event is not None and prior_event.get("participants"):
-                    active_events[result.key] = _voided_event(
-                        prior_event, result, previous_revision or prior_event["revision"]
-                    )
-            latest_revision[result.key] = result.revision
+    for play_index, raw in enumerate(frame.get("plays", [])):
+        try:
+            result = parse_play(raw, athlete_index)
+        except FixtureError as error:
+            raise FixtureError(f"fixture frame plays[{play_index}]: {error}") from error
+        previous_revision = latest_revision.get(result.key)
+        if previous_revision == result.revision:
+            continue
 
-    final_frame = frames[at]
+        prior_event = active_events.get(result.key)
+        if isinstance(result, AttributedPlay):
+            lifecycle = "corrected" if previous_revision is not None else "current"
+            active_events[result.key] = _event_json(result, lifecycle, previous_revision)
+        else:
+            skipped.append(_skipped_json(result))
+            if prior_event is not None:
+                active_events[result.key] = _voided_event(
+                    prior_event, result, previous_revision or prior_event["revision"]
+                )
+        latest_revision[result.key] = result.revision
+
     events = sorted(
         active_events.values(),
         key=lambda event: (
@@ -885,16 +965,48 @@ def reduce_frames(
             event["playId"],
         ),
     )[-event_cap:]
+    frame_errors = frame.get("errors", [])
+    if not isinstance(frame_errors, list) or not all(
+        isinstance(error, Mapping) for error in frame_errors
+    ):
+        raise FixtureError("fixture frame errors must be an array of objects")
     return {
         "schemaVersion": SCHEMA_VERSION,
-        "observedAt": final_frame["observedAt"],
-        "sourceState": final_frame["sourceState"],
-        "stale": final_frame.get("stale", False),
+        "observedAt": frame["observedAt"],
+        "sourceState": frame["sourceState"],
+        "stale": frame.get("stale", False),
         "games": [games[game_id] for game_id in sorted(games)],
         "events": events,
         "skipped": skipped[-skipped_cap:],
-        "errors": errors[-skipped_cap:],
+        "errors": [dict(error) for error in frame_errors][-skipped_cap:],
     }
+
+
+def reduce_frames(
+    fixture: Mapping[str, Any],
+    at: int | None = None,
+    event_cap: int = DEFAULT_EVENT_CAP,
+    skipped_cap: int = DEFAULT_SKIPPED_CAP,
+) -> dict[str, Any]:
+    """Replay fixture frames through the same merger used by live observations."""
+    frames = _validated_frames(fixture)
+    athletes = fixture.get("athletes")
+    if at is None:
+        at = len(frames) - 1
+    if isinstance(at, bool) or not isinstance(at, int) or at < 0 or at >= len(frames):
+        raise FixtureError("frame index is outside fixture.frames")
+    snapshot: dict[str, Any] | None = None
+    for frame in frames[: at + 1]:
+        snapshot = reconcile_frame(
+            snapshot,
+            athletes,
+            frame,
+            event_cap=event_cap,
+            skipped_cap=skipped_cap,
+        )
+    if snapshot is None:
+        raise FixtureError("fixture contains no frames")
+    return snapshot
 
 
 def load_fixture(path: str | Path) -> Mapping[str, Any]:
@@ -908,6 +1020,131 @@ def load_fixture(path: str | Path) -> Mapping[str, Any]:
     return value
 
 
+def validate_snapshot(value: Any) -> dict[str, Any]:
+    """Validate the cached public schema and return a detached snapshot."""
+    if not isinstance(value, Mapping):
+        raise FixtureError("snapshot root must be an object")
+    if value.get("schemaVersion") != SCHEMA_VERSION:
+        raise FixtureError("snapshot.schemaVersion is unsupported")
+    _required_string(value.get("observedAt"), "snapshot.observedAt")
+    source_state = _required_string(value.get("sourceState"), "snapshot.sourceState")
+    if source_state not in SOURCE_STATES:
+        raise FixtureError("snapshot.sourceState is unsupported")
+    if not isinstance(value.get("stale"), bool):
+        raise FixtureError("snapshot.stale must be boolean")
+    for key in ("games", "events", "skipped", "errors"):
+        collection = value.get(key)
+        if not isinstance(collection, list) or not all(
+            isinstance(item, Mapping) for item in collection
+        ):
+            raise FixtureError(f"snapshot.{key} must be an array of objects")
+    return copy.deepcopy(dict(value))
+
+
+def default_cache_path() -> Path:
+    cache_home = os.environ.get("XDG_CACHE_HOME")
+    if cache_home and Path(cache_home).is_absolute():
+        base = Path(cache_home)
+    else:
+        base = Path.home() / ".cache"
+    return base / "fantasy-feed" / "snapshot.json"
+
+
+def load_last_good_cache(path: str | Path) -> dict[str, Any] | None:
+    try:
+        with Path(path).open("r", encoding="utf-8") as stream:
+            value = json.load(stream)
+        return validate_snapshot(value)
+    except (OSError, UnicodeError, json.JSONDecodeError, FixtureError):
+        return None
+
+
+def write_last_good_cache(path: str | Path, snapshot: Mapping[str, Any]) -> None:
+    """Write a mode-0600 cache through fsync and same-directory atomic replace."""
+    validated = validate_snapshot(snapshot)
+    destination = Path(path)
+    destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.", dir=destination.parent
+    )
+    temporary = Path(temporary_name)
+    try:
+        os.fchmod(descriptor, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            descriptor = -1
+            json.dump(
+                validated,
+                stream,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, destination)
+        os.chmod(destination, 0o600)
+        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+        directory_fd = os.open(destination.parent, directory_flags)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    except Exception:
+        if descriptor >= 0:
+            os.close(descriptor)
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _normalized_error(code: str, error: BaseException) -> dict[str, str]:
+    message = " ".join(str(error).split())[:240] or type(error).__name__
+    return {"code": code, "message": message}
+
+
+def _stale_snapshot(
+    cached: Mapping[str, Any], code: str, error: BaseException
+) -> dict[str, Any]:
+    snapshot = validate_snapshot(cached)
+    snapshot["sourceState"] = "offline"
+    snapshot["stale"] = True
+    snapshot["errors"] = [_normalized_error(code, error)]
+    return snapshot
+
+
+def refresh_live(
+    cache_path: str | Path,
+    *,
+    get_json: espn.GetJson | None = None,
+    observed_at: str | None = None,
+) -> tuple[dict[str, Any] | None, int, dict[str, str] | None]:
+    """Refresh once, falling back only to a previously validated last-good snapshot."""
+    cached = load_last_good_cache(cache_path)
+    try:
+        fixture = espn.collect_live(
+            cached, get_json=get_json, observed_at=observed_at
+        )
+        frames = _validated_frames(fixture)
+        if len(frames) != 1:
+            raise FixtureError("live provider must return exactly one frame")
+        snapshot = reconcile_frame(cached, fixture.get("athletes"), frames[0])
+        write_last_good_cache(cache_path, snapshot)
+        return snapshot, 0, None
+    except espn.ProviderError as error:
+        normalized = _normalized_error(error.code, error)
+    except (FixtureError, ValueError) as error:
+        normalized = _normalized_error("malformed_response", error)
+    except OSError as error:
+        normalized = _normalized_error("cache_write_failed", error)
+
+    if cached is not None:
+        return _stale_snapshot(cached, normalized["code"], RuntimeError(normalized["message"])), 10, normalized
+    return None, 20, normalized
+
+
 class _ArgumentParser(argparse.ArgumentParser):
     def error(self, message: str) -> None:
         raise UsageError(message)
@@ -919,13 +1156,26 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     mode.add_argument("--fixture", metavar="PATH")
     mode.add_argument("--once", action="store_true")
     parser.add_argument("--at", type=int, metavar="FRAME")
+    parser.add_argument("--cache", metavar="PATH")
     arguments = parser.parse_args(argv)
     if arguments.at is not None and arguments.fixture is None:
         raise UsageError("--at requires --fixture")
+    if arguments.cache is not None and not arguments.once:
+        raise UsageError("--cache requires --once")
     return arguments
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _write_snapshot(snapshot: Mapping[str, Any]) -> None:
+    json.dump(snapshot, sys.stdout, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    sys.stdout.write("\n")
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    get_json: espn.GetJson | None = None,
+    observed_at: str | None = None,
+) -> int:
     try:
         arguments = _arguments(argv)
     except UsageError as error:
@@ -933,16 +1183,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 64
 
     if arguments.once:
-        print("feed.py: live --once mode begins in the provider-adapter phase", file=sys.stderr)
-        return 69
+        snapshot, status, error = refresh_live(
+            arguments.cache or default_cache_path(),
+            get_json=get_json,
+            observed_at=observed_at,
+        )
+        if snapshot is not None:
+            _write_snapshot(snapshot)
+        elif error is not None:
+            print(f"feed.py: live refresh failed: {error['message']}", file=sys.stderr)
+        return status
 
     try:
         snapshot = reduce_frames(load_fixture(arguments.fixture), at=arguments.at)
     except (FixtureError, ValueError) as error:
         print(f"feed.py: invalid fixture: {error}", file=sys.stderr)
         return 65
-    json.dump(snapshot, sys.stdout, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    sys.stdout.write("\n")
+    _write_snapshot(snapshot)
     return 0
 
 

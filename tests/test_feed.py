@@ -303,11 +303,11 @@ class CliTests(unittest.TestCase):
         self.assertEqual(64, result.returncode)
         self.assertEqual("", result.stdout)
 
-    def test_live_boundary_is_explicit_and_keeps_stdout_clean(self):
-        result = self.run_cli("--once")
-        self.assertEqual(69, result.returncode)
+    def test_cache_requires_live_mode(self):
+        result = self.run_cli("--fixture", "fixtures/replays/demo.json", "--cache", "cache.json")
+        self.assertEqual(64, result.returncode)
         self.assertEqual("", result.stdout)
-        self.assertIn("provider-adapter phase", result.stderr)
+        self.assertIn("--cache requires --once", result.stderr)
 
 
 class PerformanceTests(unittest.TestCase):
