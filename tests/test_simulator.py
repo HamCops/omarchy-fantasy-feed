@@ -20,7 +20,7 @@ import feed
 class SimulatorIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.server = espn_simulator.create_server(
-            "127.0.0.1", 0, games=10, max_plays=20, latency_ms=10
+            "127.0.0.1", 0, games=10, max_plays=30, latency_ms=5
         )
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -53,21 +53,24 @@ class SimulatorIntegrationTests(unittest.TestCase):
             cache_path = Path(directory) / "simulator.json"
             cache_path.write_text("stale simulator run", encoding="utf-8")
             first_status, first = self.run_once(cache_path, reset_cache=True)
-            second_status, second = self.run_once(cache_path)
+            latest_status, latest = first_status, first
+            for _tick in range(2, 26):
+                latest_status, latest = self.run_once(cache_path)
 
         self.assertEqual(0, first_status)
-        self.assertEqual(0, second_status)
-        self.assertEqual("live", second["sourceState"])
-        self.assertEqual(10, len(second["games"]))
-        self.assertEqual(20, len(second["events"]))
-        self.assertEqual(60, len(second["leaderboard"]))
-        self.assertEqual([], second["skipped"])
-        self.assertTrue(all(game["period"] > 0 and game["clock"] for game in second["games"]))
-        newest = second["events"][-10:]
+        self.assertEqual(0, latest_status)
+        self.assertEqual("live", latest["sourceState"])
+        self.assertEqual(10, len(latest["games"]))
+        self.assertEqual(200, len(latest["events"]))
+        self.assertEqual(60, len(latest["leaderboard"]))
+        self.assertEqual([], latest["skipped"])
+        self.assertTrue(all(game["period"] > 0 and game["clock"] for game in latest["games"]))
+        newest = latest["events"][-10:]
         self.assertEqual(10, len({event["gameId"] for event in newest}))
         metrics = self.server.simulator_state.metrics()
-        self.assertEqual(2, metrics["tick"])
+        self.assertEqual(25, metrics["tick"])
         self.assertGreaterEqual(metrics["peakConcurrentRequests"], 2)
+        self.assertLessEqual(metrics["totalRequests"], 25 * 22)
 
 
 if __name__ == "__main__":

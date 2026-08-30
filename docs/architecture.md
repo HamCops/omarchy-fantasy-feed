@@ -83,9 +83,12 @@ collection does the following:
 Network requests have a five-second per-request timeout and strict URL,
 protocol, host, path, response-type, and response-size validation. Scoreboard,
 summary, roster, and play-stat responses have separate caps. A cold observation follows
-at most 40 supported candidates and retains at most 40 unsupported diagnostics;
+at most the 40 most recent supported candidates and retains at most the 40 most
+recent unsupported diagnostics;
 unchanged provider revisions reuse the existing normalized record without
-another play-stat request.
+another play-stat request. Bounding happens before revision comparison, so
+events evicted from the 200-record presentation cache cannot churn back through
+the adapter as old-but-apparently-new stat requests.
 
 Any response needed for a trustworthy observation failing validation fails the
 refresh. Partial provider data never becomes a fresh snapshot.

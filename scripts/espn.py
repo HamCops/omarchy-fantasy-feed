@@ -975,19 +975,35 @@ def collect_live(
     weekly_players = _aggregate_weekly_players(weekly_game_rows, positions)
 
     known_revisions = _known_source_revisions(previous_snapshot)
-    supported: list[dict[str, Any]] = []
-    diagnostics: list[dict[str, Any]] = []
+    supported_window: list[dict[str, Any]] = []
+    diagnostic_window: list[dict[str, Any]] = []
     for play in extracted_plays:
-        key = (play["provider"], play["gameId"], play["id"])
-        if known_revisions.get(key) == play["providerRevision"]:
-            continue
         if play.pop("_supportedCandidate"):
-            supported.append(play)
+            supported_window.append(play)
         else:
-            diagnostics.append(play)
+            diagnostic_window.append(play)
 
-    supported = sorted(supported, key=_play_order, reverse=True)[:MAX_CANDIDATE_PLAYS]
-    diagnostics = sorted(diagnostics, key=_play_order, reverse=True)[:MAX_DIAGNOSTIC_PLAYS]
+    # Bound the provider window before comparing revisions. Once the public
+    # event cache reaches its own cap, older evicted plays must not re-enter as
+    # apparently unseen candidates and consume stat requests every refresh.
+    supported_window = sorted(supported_window, key=_play_order, reverse=True)[
+        :MAX_CANDIDATE_PLAYS
+    ]
+    diagnostic_window = sorted(diagnostic_window, key=_play_order, reverse=True)[
+        :MAX_DIAGNOSTIC_PLAYS
+    ]
+    supported = [
+        play
+        for play in supported_window
+        if known_revisions.get((play["provider"], play["gameId"], play["id"]))
+        != play["providerRevision"]
+    ]
+    diagnostics = [
+        play
+        for play in diagnostic_window
+        if known_revisions.get((play["provider"], play["gameId"], play["id"]))
+        != play["providerRevision"]
+    ]
     stat_urls = [
         play["_statisticsUrl"]
         for play in supported
