@@ -210,6 +210,8 @@ Item {
     if (service) service.toggleFavorite(player)
   }
 
+  onScoringModeChanged: scoringDropdown.value = scoringMode
+
   FloatingWindow {
     id: window
     title: "Fantasy Feed"

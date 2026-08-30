@@ -250,6 +250,7 @@ Panel {
   }
 
   onNewestEventsChanged: clampSelection()
+  onScoringModeChanged: scoringDropdown.value = scoringMode
   onOpenedChanged: {
     if (opened) {
       selectedIndex = 0

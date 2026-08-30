@@ -217,6 +217,7 @@ class FeedUiContractTests(unittest.TestCase):
             self.assertIn('{value: "ppr", label: "PPR"}', source)
             self.assertIn('{value: "standard", label: "STD"}', source)
             self.assertIn("value: root.scoringMode", source)
+            self.assertIn("onScoringModeChanged: scoringDropdown.value = scoringMode", source)
             self.assertIn("participant.points[scoringMode]", source)
             self.assertIn("pointsColor(annotation.points)", source)
         self.assertIn("blocked: scoringDropdown.popupOpen", self.panel)
