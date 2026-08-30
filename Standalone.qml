@@ -13,7 +13,7 @@ Item {
   property var service: null
   property bool closingFromHost: false
   property string activeTab: "feed"
-  property string scoringMode: "ppr"
+  readonly property string scoringMode: service ? service.scoringMode : "ppr"
   property string positionFilter: "ALL"
   property bool followNewest: true
   property int unseenArrivals: 0
@@ -76,6 +76,11 @@ Item {
         var payload = JSON.parse(String(payloadJson))
         if (payload && ["feed", "leaders", "favorites"].indexOf(payload.tab) !== -1)
           activeTab = payload.tab
+        if (payload && (payload.playerId || payload.eventToken)) {
+          var playerId = String(payload.playerId || "")
+          var eventToken = String(payload.eventToken || "")
+          Qt.callLater(function() { root.jumpToFavoritePlay(playerId, eventToken) })
+        }
       } catch (error) { /* ignore malformed optional payload */ }
     }
     window.visible = true
@@ -102,6 +107,33 @@ Item {
     unseenArrivals = 0
     Qt.callLater(function() {
       if (feedList.count > 0) feedList.positionViewAtBeginning()
+    })
+  }
+
+  function jumpToFavoritePlay(playerId, preferredToken) {
+    activeTab = "favorites"
+    Qt.callLater(function() {
+      var target = -1
+      for (var index = 0; index < root.displayedEvents.length; index++) {
+        var event = root.displayedEvents[index]
+        if (preferredToken && root.eventToken(event) === preferredToken) {
+          target = index
+          break
+        }
+        var participants = event && event.participants
+          && event.participants.length !== undefined ? event.participants : []
+        for (var participantIndex = 0; participantIndex < participants.length; participantIndex++) {
+          if (String(participants[participantIndex].playerId || "") === String(playerId || "")) {
+            target = index
+            break
+          }
+        }
+        if (target !== -1) break
+      }
+      if (target === -1) return
+      root.followNewest = target === 0
+      root.unseenArrivals = 0
+      feedList.positionViewAtIndex(target, ListView.Center)
     })
   }
 
@@ -266,7 +298,7 @@ Item {
         } else if (event.key === Qt.Key_3) {
           root.activeTab = "favorites"; event.accepted = true
         } else if (event.key === Qt.Key_P) {
-          root.scoringMode = root.scoringMode === "ppr" ? "standard" : "ppr"
+          if (root.service) root.service.toggleScoringMode()
           event.accepted = true
         } else if (event.key === Qt.Key_Slash && root.activeTab === "leaders") {
           leaderboardSearch.forceActiveFocus(); event.accepted = true
@@ -336,7 +368,9 @@ Item {
               value: root.scoringMode
               foreground: root.foreground
               fontFamily: root.fontFamily
-              onChanged: function(value) { root.scoringMode = value }
+              onChanged: function(value) {
+                if (root.service) root.service.setScoringMode(value)
+              }
             }
 
             Button {
@@ -384,6 +418,16 @@ Item {
           service: root.service
           foreground: root.foreground
           fontFamily: root.fontFamily
+        }
+
+
+        FavoritePulseRail {
+          service: root.service
+          foreground: root.foreground
+          fontFamily: root.fontFamily
+          onPlayerActivated: function(playerId, eventToken) {
+            root.jumpToFavoritePlay(playerId, eventToken)
+          }
         }
 
         Row {

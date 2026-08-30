@@ -21,10 +21,17 @@
         {
           "playByPlayAvailable": true,
           "status": {
+            "period": 2,
+            "displayClock": "08:14",
             "type": {
               "state": "in",
               "shortDetail": "Q2 08:14"
             }
+          },
+          "situation": {
+            "possession": "33",
+            "isRedZone": true,
+            "downDistanceText": "2nd & 6 at BAL 14"
           },
           "competitors": [
             {

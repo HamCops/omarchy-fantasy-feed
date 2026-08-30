@@ -178,6 +178,11 @@ class SimulatorState:
             away_index, home_index = self.teams_for_game(game_index)
             play_count = self.game_play_count(game_index)
             period, clock = self.game_clock(game_index, tick)
+            possession_index = self.offense_team(game_index, max(1, play_count))
+            is_red_zone = play_count > 0 and (play_count + game_index) % 5 in {0, 1}
+            defense_index = home_index if possession_index == away_index else away_index
+            defense_abbreviation = TEAM_ABBREVIATIONS[defense_index]
+            yard_line = 8 + (play_count * 3 + game_index) % 12
             events.append(
                 {
                     "id": self.game_id(game_index),
@@ -193,6 +198,15 @@ class SimulatorState:
                                     "detail": f"Q{period} {clock}",
                                     "shortDetail": f"Q{period} {clock}",
                                 },
+                            },
+                            "situation": {
+                                "possession": self.team_id(possession_index),
+                                "isRedZone": is_red_zone,
+                                "downDistanceText": (
+                                    f"2nd & 6 at {defense_abbreviation} {yard_line}"
+                                    if is_red_zone
+                                    else f"1st & 10 at {defense_abbreviation} 42"
+                                ),
                             },
                             "competitors": [
                                 {
@@ -227,6 +241,8 @@ class SimulatorState:
         return away_index if (game_index + play_number) % 2 == 0 else home_index
 
     def play_kind(self, game_index: int, play_number: int) -> str:
+        if play_number % 13 == 0:
+            return "passing_touchdown" if game_index % 2 == 0 else "rushing_touchdown"
         return "pass" if (game_index + play_number) % 3 != 0 else "rush"
 
     def play_yards(self, game_index: int, play_number: int) -> int:
@@ -247,15 +263,28 @@ class SimulatorState:
         quarterback = self.athlete(offense_index, "QB")
         receiver = self.athlete(offense_index, "WR")
         runner = self.athlete(offense_index, "RB")
-        if kind == "pass":
+        if kind in {"pass", "passing_touchdown"}:
             play_type = "Pass Reception"
             text = (
                 f"{quarterback['firstName'][0]}.{quarterback['lastName']} pass complete to "
                 f"{receiver['firstName'][0]}.{receiver['lastName']} for {yards} yards."
             )
+            if kind == "passing_touchdown":
+                play_type = "Passing Touchdown"
+                text = (
+                    f"{quarterback['firstName'][0]}.{quarterback['lastName']} pass to "
+                    f"{receiver['firstName'][0]}.{receiver['lastName']} for {yards} yards, "
+                    "TOUCHDOWN."
+                )
         else:
             play_type = "Rush"
             text = f"{runner['firstName'][0]}.{runner['lastName']} rushes for {yards} yards."
+            if kind == "rushing_touchdown":
+                play_type = "Rushing Touchdown"
+                text = (
+                    f"{runner['firstName'][0]}.{runner['lastName']} up the middle for "
+                    f"{yards} yards, TOUCHDOWN."
+                )
         wallclock = self._base_time + timedelta(
             seconds=exposure_tick * 20, milliseconds=game_index * 25
         )
@@ -268,7 +297,7 @@ class SimulatorState:
             "clock": {"displayValue": clock},
             "wallclock": _timestamp(wallclock),
             "modified": _timestamp(wallclock + timedelta(seconds=1)),
-            "scoringPlay": False,
+            "scoringPlay": kind in {"passing_touchdown", "rushing_touchdown"},
             "isPenalty": False,
             "isTurnover": False,
             "statYardage": yards,
@@ -304,12 +333,18 @@ class SimulatorState:
             if self.offense_team(game_index, play_number) != team_index:
                 continue
             yards = self.play_yards(game_index, play_number)
-            if self.play_kind(game_index, play_number) == "pass":
+            kind = self.play_kind(game_index, play_number)
+            if kind in {"pass", "passing_touchdown"}:
                 totals["passingYards"] += yards
                 totals["receptions"] += 1
                 totals["receivingYards"] += yards
+                if kind == "passing_touchdown":
+                    totals["passingTouchdowns"] += 1
+                    totals["receivingTouchdowns"] += 1
             else:
                 totals["rushingYards"] += yards
+                if kind == "rushing_touchdown":
+                    totals["rushingTouchdowns"] += 1
         return totals
 
     def player_group(self, team_index: int, totals: Mapping[str, int]) -> dict[str, Any]:
@@ -429,17 +464,26 @@ class SimulatorState:
         if team_id != self.team_id(offense_index):
             return None
         yards = self.play_yards(game_index, play_number)
-        if self.play_kind(game_index, play_number) == "pass":
+        kind = self.play_kind(game_index, play_number)
+        if kind in {"pass", "passing_touchdown"}:
             categories = [
                 {
                     "name": "passing",
-                    "stats": [{"name": "passingYards", "value": yards}],
+                    "stats": [
+                        {"name": "passingYards", "value": yards},
+                        {"name": "passingTouchdowns", "value": 1}
+                        if kind == "passing_touchdown"
+                        else {"name": "passingTouchdowns", "value": 0},
+                    ],
                 },
                 {
                     "name": "receiving",
                     "stats": [
                         {"name": "receptions", "value": 1},
                         {"name": "receivingYards", "value": yards},
+                        {"name": "receivingTouchdowns", "value": 1}
+                        if kind == "passing_touchdown"
+                        else {"name": "receivingTouchdowns", "value": 0},
                     ],
                 },
             ]
@@ -447,7 +491,12 @@ class SimulatorState:
             categories = [
                 {
                     "name": "rushing",
-                    "stats": [{"name": "rushingYards", "value": yards}],
+                    "stats": [
+                        {"name": "rushingYards", "value": yards},
+                        {"name": "rushingTouchdowns", "value": 1}
+                        if kind == "rushing_touchdown"
+                        else {"name": "rushingTouchdowns", "value": 0},
+                    ],
                 }
             ]
         return {"splits": {"categories": categories}}

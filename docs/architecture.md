@@ -113,6 +113,10 @@ Provider input ends at `parse_play`. UI input begins at the versioned
 and `errors`. QML does not
 inspect boxscores, drive objects, regular expressions, or scoring rules.
 
+Live game rows also retain the scoreboard's optional `possession`, `isRedZone`,
+and `downDistance` situation fields. They require no additional request and
+default to empty/false when the provider omits or malforms the optional object.
+
 The public Python model uses frozen slotted dataclasses:
 
 - `PlayKey` identifies a provider play by provider, game ID, and play ID.
@@ -247,7 +251,9 @@ count.
 
 ## UI contract
 
-`BarWidget.qml` renders a stable source-state/favorite-signal capsule;
+`BarWidget.qml` renders a stable source-state/favorite-signal capsule. During a
+favorite arrival the capsule temporarily names the player and selected scoring
+delta;
 the newest raw play remains in its tooltip. Vertical bars show the glyph only.
 Stale state is explicit. Left click toggles `FeedPanel.qml`, and middle click
 requests an optional immediate shared refresh.
@@ -258,7 +264,8 @@ or parser logic. It uses `KeyboardPanel`, `PanelKeyCatcher`, and a virtualized
 lifecycle states. Event cards use compact outer padding. A themed PPR/STD
 dropdown selects the score inserted in parentheses directly after each
 affected player's first name occurrence in the provider play sentence; the
-standalone window applies that same local mode to its leaderboard sort. Raw play text is never line-capped, so narrower
+singleton service persists that scoring mode and every surface applies it to
+inline points, player pulses, alerts, and leaderboard sort. Raw play text is never line-capped, so narrower
 surfaces wrap instead of dropping context. Arrow keys and `j`/`k` move the
 monitor-local selection, `r` refreshes, `d` switches demo/live, `o` opens the
 standalone window, and `Esc` closes. The standalone leaderboard also filters
@@ -270,7 +277,17 @@ derives selected event and favorite-event views, so toggling any combination of
 matchups immediately stays in sync across windows and the bar. Weekly player
 rows retain their game IDs so the same selection also filters the leaderboard.
 Each compact two-line matchup chip renders `AWAY score–score HOME` and provider
-status; live games prefer the explicit period plus remaining clock.
+status; live games prefer the explicit period plus remaining clock. If the
+possessing team has a favorite player and the provider marks the situation as
+red zone, the chip gains an amber `★ RZ` state and exposes down-and-distance in
+its tooltip.
+
+`FavoritePulseRail.qml` is shared by compact and standalone feed surfaces. It
+joins persisted favorite identities with weekly leaderboard totals, the newest
+matching participant delta, and favorite-team red-zone state. Stable player
+ordering avoids layout churn; only border, color, and scale pulse on the
+currently staged favorite event. Clicking a chip positions the relevant feed at
+that player's newest play.
 
 `Standalone.qml` owns an ordinary `FloatingWindow`, so Hyprland can move, tile,
 or place it like another app instead of covering the current workspace as a
@@ -280,6 +297,13 @@ service persists favorite player identities atomically under Omarchy config and
 derives the favorites-only feed from normalized participant IDs. Favorite
 controls and structured weekly stat deltas live on leaderboard rows, keeping
 the play feed to one scored sentence per event.
+
+The same local settings document stores the alert preset (`off`, every favorite
+play, favorite touchdowns, 3+ points, or 6+ points). A qualifying staged event
+uses an argv-only `Quickshell.execDetached` call to Omarchy's low-urgency
+notification sender. Hidden games are excluded and Do Not Disturb remains in
+control. The toast's persisted click argv summons the standalone favorites view
+and positions the exact event token; no shell command string is constructed.
 
 ## Verification
 

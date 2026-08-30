@@ -42,6 +42,13 @@ publication steps that require operator review.
   jumping, and the button returns both feed surfaces to the live edge.
 - [ ] Confirm compact game chips show matchup/score on line one and game
   status/remaining clock on line two at the smallest supported panel width.
+- [ ] Favorite simulator players and confirm the My Players rail shows weekly
+  PPR/STD totals, latest deltas, green/red pulses, and click-to-play navigation.
+- [ ] Confirm favorite-team possession produces the amber `★ RZ` game-chip
+  state and down-and-distance tooltip, then clears when possession changes.
+- [ ] Exercise `OFF`, all-play, touchdown-only, 3+, and 6+ alert presets. Confirm
+  hidden games stay quiet, Do Not Disturb is honored, and clicking a toast opens
+  the exact favorite play. Restore `OFF` before capturing submission media.
 - [ ] Disable and remove the plugin, confirming no helper remains.
 
 ## Preview capture
@@ -67,4 +74,4 @@ publication steps that require operator review.
   submission copy.
 - [ ] Replace the generic install URL only after the public repository exists.
 - [ ] Repeat the automated and runtime gates from a clean checkout.
-- [ ] Tag `v0.5.0` only after every release gate passes.
+- [ ] Tag `v0.6.0` only after every release gate passes.

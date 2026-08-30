@@ -29,7 +29,6 @@ class ServiceBoundaryTests(unittest.TestCase):
     def test_service_owns_exactly_one_process_and_uses_argv(self):
         self.assertEqual(1, len(re.findall(r"(?m)^  Process \{", self.source)))
         self.assertIn('return ["python3", script, "--once"]', self.source)
-        self.assertNotIn("execDetached", self.source)
         self.assertNotRegex(self.source, r'\["(?:ba)?sh",\s*"-[cl]"')
 
     def test_service_waits_for_injected_manifest(self):
@@ -108,6 +107,29 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn('Quickshell.env("XDG_CONFIG_HOME")', self.source)
         self.assertIn("function toggleFavorite(player)", self.source)
         self.assertIn("readonly property var favoriteEvents", self.source)
+        self.assertIn("settings: {scoringMode: scoringMode, alertPreset: alertPreset}", self.source)
+
+    def test_service_derives_player_pulses_red_zone_watch_and_quiet_alerts(self):
+        for property_name in (
+            "favoritePlayerRows",
+            "favoriteRedZoneGameCount",
+            "scoringMode",
+            "alertPreset",
+        ):
+            self.assertRegex(self.source, rf"property [^\n]*\b{property_name}\b")
+        for method_name in (
+            "buildFavoritePlayerRows",
+            "gameHasFavoriteRedZone",
+            "setScoringMode",
+            "setAlertPreset",
+            "shouldNotifyFavoriteEvent",
+            "sendFavoriteNotification",
+        ):
+            self.assertIn(f"function {method_name}(", self.source)
+        self.assertIn('"omarchy-notification-send"', self.source)
+        self.assertIn('"--exec", "omarchy-shell", "shell", "summon"', self.source)
+        self.assertIn('"-u", "low"', self.source)
+        self.assertIn("Quickshell.execDetached([", self.source)
 
     def test_service_stages_arrivals_and_holds_favorite_plays(self):
         for property_name in (
@@ -140,6 +162,7 @@ class FeedUiContractTests(unittest.TestCase):
         cls.panel = (ROOT / "FeedPanel.qml").read_text(encoding="utf-8")
         cls.standalone = (ROOT / "Standalone.qml").read_text(encoding="utf-8")
         cls.game_selector = (ROOT / "GameSelector.qml").read_text(encoding="utf-8")
+        cls.pulse_rail = (ROOT / "FavoritePulseRail.qml").read_text(encoding="utf-8")
 
     def test_bar_forwards_the_complete_popout_shape(self):
         self.assertIn('source: Qt.resolvedUrl("FeedPanel.qml")', self.bar)
@@ -154,6 +177,7 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("if (root.vertical) return glyph", self.bar)
         self.assertIn("function barLabel()", self.bar)
         self.assertIn('label += " · ★" + feedService.favoriteCount', self.bar)
+        self.assertIn('label += " · ★ " + feedService.favoriteBarLabel()', self.bar)
         self.assertNotIn('feedService.visibleEvents.length + " PLAYS"', self.bar)
         self.assertIn("buttonCode === Qt.MiddleButton", self.bar)
         self.assertIn("root.feedService.refresh()", self.bar)
@@ -203,7 +227,20 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn('return "Q" + period + " " + clock', self.game_selector)
         self.assertIn('String(game.awayScore) + "–" + String(game.homeScore)', self.game_selector)
         self.assertIn('return status ? matchup + "\\n" + status : matchup', self.game_selector)
+        self.assertIn("service.gameHasFavoriteRedZone(game)", self.game_selector)
+        self.assertIn('status = "★ RZ"', self.game_selector)
         self.assertNotRegex(self.game_selector, r"(?m)^\s*(Process|Timer)\s*\{")
+
+    def test_favorite_pulse_rail_is_shared_scored_and_clickable(self):
+        for source in (self.panel, self.standalone):
+            self.assertIn("FavoritePulseRail {", source)
+            self.assertIn("root.jumpToFavoritePlay(playerId, eventToken)", source)
+        for value in ("off", "all", "touchdowns", "threshold3", "threshold6"):
+            self.assertIn(f'value: "{value}"', self.pulse_rail)
+        self.assertIn("service.favoritePlayerRows", self.pulse_rail)
+        self.assertIn("player.spotlight", self.pulse_rail)
+        self.assertIn("player.redZone", self.pulse_rail)
+        self.assertIn("signal playerActivated", self.pulse_rail)
 
     def test_feed_surfaces_preserve_reading_position_and_spotlight_favorites(self):
         for source in (self.panel, self.standalone):
@@ -284,7 +321,7 @@ class FeedUiContractTests(unittest.TestCase):
     def test_standalone_window_has_feed_leaderboard_and_favorites(self):
         self.assertIn("FloatingWindow {", self.standalone)
         self.assertIn('title: "Fantasy Feed"', self.standalone)
-        self.assertIn('property string scoringMode: "ppr"', self.standalone)
+        self.assertIn('readonly property string scoringMode: service ? service.scoringMode : "ppr"', self.standalone)
         self.assertIn('["ALL", "QB", "RB", "WR", "TE"]', self.standalone)
         self.assertIn("service.visibleFavoriteEvents", self.standalone)
         self.assertNotIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.standalone)

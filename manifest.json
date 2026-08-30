@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "tdh.fantasy-feed",
   "name": "Fantasy Feed",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "author": "Tom Hammond",
   "license": "MIT",
   "description": "Live NFL plays with PPR and standard fantasy scoring.",

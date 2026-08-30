@@ -76,6 +76,19 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual(2, game["period"])
         self.assertEqual("07:43", game["clock"])
 
+    def test_scoreboard_situation_normalizes_possession_and_red_zone_state(self):
+        game = espn.extract_scoreboard(SCOREBOARD)["games"][0]
+        self.assertEqual("CLE", game["possession"])
+        self.assertTrue(game["isRedZone"])
+        self.assertEqual("2nd & 6 at BAL 14", game["downDistance"])
+
+        payload = copy.deepcopy(SCOREBOARD)
+        del payload["events"][0]["competitions"][0]["situation"]
+        no_situation = espn.extract_scoreboard(payload)["games"][0]
+        self.assertEqual("", no_situation["possession"])
+        self.assertFalse(no_situation["isRedZone"])
+        self.assertEqual("", no_situation["downDistance"])
+
     def test_missing_wallclock_falls_back_to_required_modified_time(self):
         summary = copy.deepcopy(SUMMARY)
         raw_play = summary["drives"]["previous"][0]["plays"][0]

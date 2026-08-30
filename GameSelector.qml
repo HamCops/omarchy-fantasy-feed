@@ -27,6 +27,8 @@ Item {
   function gameLabel(game) {
     var matchup = matchupLabel(game)
     var status = gameStatusLabel(game)
+    if (service && service.gameHasFavoriteRedZone(game))
+      status = "★ RZ" + (status ? " · " + status : "")
     return status ? matchup + "\n" + status : matchup
   }
 
@@ -46,7 +48,12 @@ Item {
     var enabled = service && service.gameEnabled(game.id)
     var detail = String(game && game.detail ? game.detail : "")
     var action = enabled ? "Hide this game" : "Show this game"
-    return detail ? action + " · " + detail : action
+    var redZone = service && service.gameHasFavoriteRedZone(game)
+      ? "Favorite offense in the red zone: " + service.favoriteRedZoneNames(game)
+        + (game.downDistance ? " · " + String(game.downDistance) : "")
+      : ""
+    var status = detail ? action + " · " + detail : action
+    return redZone ? redZone + "\n" + status : status
   }
 
   visible: games.length > 0
@@ -89,15 +96,20 @@ Item {
           required property var modelData
           readonly property bool gameSelected: root.service
             ? root.service.gameEnabled(modelData.id) : false
+          readonly property bool favoriteRedZone: root.service
+            ? root.service.gameHasFavoriteRedZone(modelData) : false
 
           text: root.gameLabel(modelData)
           tooltipText: root.gameTooltip(modelData)
-          foreground: gameSelected ? root.foreground : Qt.darker(root.foreground, 1.65)
+          foreground: favoriteRedZone
+            ? "#ffb347"
+            : (gameSelected ? root.foreground : Qt.darker(root.foreground, 1.65))
           fontFamily: root.fontFamily
           fontSize: Style.font.caption
           verticalPadding: Style.space(4)
           bordered: true
           selected: gameSelected
+          active: favoriteRedZone
           onClicked: if (root.service) root.service.toggleGame(modelData.id)
         }
       }

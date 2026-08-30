@@ -41,7 +41,7 @@ Panel {
   // second monitor never moves the first monitor's cursor.
   property int selectedIndex: 0
   property bool cursorActive: true
-  property string scoringMode: "ppr"
+  readonly property string scoringMode: feedService ? feedService.scoringMode : "ppr"
   property bool followNewest: true
   property int unseenArrivals: 0
   property string _lastTopToken: ""
@@ -102,6 +102,32 @@ Panel {
     Qt.callLater(function() {
       if (eventList.count > 0) eventList.positionViewAtBeginning()
     })
+  }
+
+  function jumpToFavoritePlay(playerId, preferredToken) {
+    var target = -1
+    for (var index = 0; index < newestEvents.length; index++) {
+      var event = newestEvents[index]
+      if (preferredToken && eventToken(event) === preferredToken) {
+        target = index
+        break
+      }
+      var participants = event && event.participants
+        && event.participants.length !== undefined ? event.participants : []
+      for (var participantIndex = 0; participantIndex < participants.length; participantIndex++) {
+        if (String(participants[participantIndex].playerId || "") === String(playerId || "")) {
+          target = index
+          break
+        }
+      }
+      if (target !== -1) break
+    }
+    if (target === -1) return
+    cursorActive = true
+    selectedIndex = target
+    followNewest = target === 0
+    unseenArrivals = 0
+    Qt.callLater(function() { eventList.positionViewAtIndex(target, ListView.Center) })
   }
 
   function handleEventModelChange() {
@@ -304,7 +330,7 @@ Panel {
         else if (text === "d" || text === "D") root.toggleMode()
         else if (text === "o" || text === "O") root.popOut()
         else if (text === "p" || text === "P")
-          root.scoringMode = root.scoringMode === "ppr" ? "standard" : "ppr"
+          if (root.feedService) root.feedService.toggleScoringMode()
       }
 
       Column {
@@ -386,7 +412,9 @@ Panel {
               value: root.scoringMode
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
-              onChanged: function(value) { root.scoringMode = value }
+              onChanged: function(value) {
+                if (root.feedService) root.feedService.setScoringMode(value)
+              }
             }
 
             Button {
@@ -440,6 +468,15 @@ Panel {
           service: root.feedService
           foreground: root.contentForeground
           fontFamily: root.contentFontFamily
+        }
+
+        FavoritePulseRail {
+          service: root.feedService
+          foreground: root.contentForeground
+          fontFamily: root.contentFontFamily
+          onPlayerActivated: function(playerId, eventToken) {
+            root.jumpToFavoritePlay(playerId, eventToken)
+          }
         }
 
         PanelSeparator {

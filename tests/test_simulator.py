@@ -88,6 +88,9 @@ class SimulatorIntegrationTests(unittest.TestCase):
         self.assertEqual(60, len(latest["leaderboard"]))
         self.assertEqual([], latest["skipped"])
         self.assertTrue(all(game["period"] > 0 and game["clock"] for game in latest["games"]))
+        self.assertTrue(all("possession" in game for game in latest["games"]))
+        self.assertTrue(any(game["isRedZone"] for game in latest["games"]))
+        self.assertTrue(any("touchdown" in event["kind"] for event in latest["events"]))
         newest = latest["events"][-10:]
         self.assertEqual(10, len({event["gameId"] for event in newest}))
         metrics = self.server.simulator_state.metrics()

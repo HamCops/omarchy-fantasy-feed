@@ -323,6 +323,26 @@ def extract_scoreboard(payload: Mapping[str, Any]) -> dict[str, Any]:
             raise ProviderError("malformed_response", f"{event_path} lacks home or away team")
 
         state = {"pre": "scheduled", "in": "live", "post": "final"}[provider_state]
+        possession = ""
+        is_red_zone = False
+        down_distance = ""
+        situation = competition.get("situation")
+        if isinstance(situation, Mapping):
+            possession_id = situation.get("possession")
+            if isinstance(possession_id, (str, int)) and not isinstance(possession_id, bool):
+                possession_text = str(possession_id)
+                for side in ("away", "home"):
+                    team = by_side[side].get("team")
+                    if not isinstance(team, Mapping) or str(team.get("id", "")) != possession_text:
+                        continue
+                    abbreviation = team.get("abbreviation")
+                    if isinstance(abbreviation, str):
+                        possession = abbreviation
+                    break
+            is_red_zone = situation.get("isRedZone") is True
+            raw_down_distance = situation.get("downDistanceText")
+            if isinstance(raw_down_distance, str):
+                down_distance = raw_down_distance
         game = {
             "id": game_id,
             "state": state,
@@ -353,6 +373,9 @@ def extract_scoreboard(payload: Mapping[str, Any]) -> dict[str, Any]:
                 if isinstance(status.get("displayClock"), str)
                 else ""
             ),
+            "possession": possession,
+            "isRedZone": is_red_zone,
+            "downDistance": down_distance,
         }
         games.append(game)
         if competition.get("playByPlayAvailable") is True and provider_state in {"in", "post"}:

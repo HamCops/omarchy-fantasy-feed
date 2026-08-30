@@ -3,8 +3,9 @@
 Fantasy Feed is an Omarchy plugin for following NFL plays through a
 fantasy-football lens. A stable bar capsule shows feed health without resizing
 on every snap. The compact panel expands each play into raw text, stat deltas,
-and the points from a selectable PPR or standard profile; a standalone window
-adds weekly leaderboards and a favorites-only feed.
+and the points from a selectable PPR or standard profile; a shared My Players
+rail tracks favorite totals, latest deltas, red-zone opportunities, and quiet
+alerts. A standalone window adds weekly leaderboards and a favorites-only feed.
 
 It uses the active Omarchy theme and deliberately avoids sportsbook branding,
 accounts, contests, and roster management.
@@ -15,6 +16,9 @@ The horizontal bar presents a stable status such as:
 
 ```text
 LIVE · ★3
+
+# During a favorite-player arrival
+LIVE · ★ CUEVAS +2.8
 ```
 
 Opening the compact panel shows the game clock and matchup, ESPN's play text, the
@@ -31,10 +35,18 @@ Pop the panel into a normal movable/tileable window for three views: the full
 feed, a weekly QB/RB/WR/TE leaderboard sortable by PPR or standard points, and
 a custom feed containing only plays by locally favorited players.
 
+When players are favorited, a horizontally scrollable **My Players** rail shows
+each player's weekly total and latest play delta in the selected scoring mode.
+Positive and negative arrivals pulse green or red. Clicking a player jumps to
+their latest scored play. The scoring selection is shared by every surface and
+persists across shell restarts.
+
 A horizontally scrollable game strip appears across both feed surfaces. Click
 any matchup to toggle it independently; click **ALL** to hide or restore the
 entire slate. Compact two-line chips show `ARI 21–18 ATL` above the live quarter
-and remaining clock (or the scheduled/final provider detail). The same selection filters the compact feed,
+and remaining clock (or the scheduled/final provider detail). When a favorite's
+team has possession in the red zone, its chip turns amber and shows `★ RZ` plus
+down-and-distance in the tooltip. The same selection filters the compact feed,
 standalone feed, favorites feed, and weekly leaderboard.
 
 Newly discovered plays enter a shared live tape one at a time instead of
@@ -93,6 +105,10 @@ omarchy plugin remove tdh.fantasy-feed --yes
   `p` to toggle PPR/standard display and sorting. Select `ALL`, `QB`, `RB`, `WR`, or `TE`,
   type in the player/team search (`/` focuses it), and use `☆`/`★` to update
   favorites from the leaderboard.
+- Use the alert menu beside **My Players** to choose `OFF`, every favorite play,
+  favorite touchdowns only, or a 3+/6+ point threshold. Alerts are low urgency,
+  respect Omarchy Do Not Disturb, skip hidden games, and open the exact play
+  when clicked.
 
 The same service controls are available through Omarchy shell IPC:
 
@@ -178,14 +194,15 @@ the reception bonus.
 | Receiving two-point conversion | 2 | 2 |
 | Fumble lost | -2 | -2 |
 
-Negative yardage produces negative points. Version 0.3 intentionally excludes
+Negative yardage produces negative points. Version 0.6 intentionally excludes
 kickers, team defense, points-allowed bands, half PPR, custom scoring, fantasy
-league roster sync, projections, alerts, contests, betting data, and other
-sports.
+league roster sync, projections, non-favorite alerts, contests, betting data,
+and other sports.
 
 Weekly leaderboard totals come from complete structured game box scores rather
 than the bounded play feed. ESPN roster metadata is used only to assign the
-QB/RB/WR/TE grouping. Favorites are stored locally in
+QB/RB/WR/TE grouping. Favorites, the shared PPR/STD selection, and alert policy
+are stored locally in
 `$XDG_CONFIG_HOME/omarchy/fantasy-feed.json` (normally
 `~/.config/omarchy/fantasy-feed.json`); no fantasy account is required.
 
@@ -224,6 +241,12 @@ one shared arrival queue used by every monitor and the standalone window. The
 queue uses 600/300/160 ms normal, catch-up, and urgent pacing; a favorite arrival
 holds for 2.6 seconds. Initial loads and data-mode/week changes hydrate at once
 instead of replaying an old cache card by card.
+
+Red-zone watch uses ESPN's optional scoreboard situation object rather than an
+additional endpoint. Missing or malformed possession data fails closed to no
+red-zone accent. Desktop alerts are emitted only for newly presented favorite
+events that match the saved policy; they use Omarchy's low-urgency notification
+path and carry an argv-safe click action back to the corresponding play.
 
 Fresh live data is written atomically to a mode-`0600` last-good cache at:
 

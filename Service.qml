@@ -39,6 +39,8 @@ Item {
     ? visibleEvents[visibleEvents.length - 1] : null
   property var favorites: []
   readonly property int favoriteCount: favorites.length
+  property string scoringMode: "ppr"
+  property string alertPreset: "off"
   readonly property var favoriteEvents: {
     var filtered = []
     var sourceEvents = events
@@ -93,6 +95,15 @@ Item {
   property int presentationSequence: 0
   property string favoriteSpotlightToken: ""
   property bool favoriteSpotlightActive: false
+  property var favoriteSpotlightEvent: null
+  readonly property var favoritePlayerRows: buildFavoritePlayerRows()
+  readonly property int favoriteRedZoneGameCount: {
+    var count = 0
+    for (var index = 0; index < games.length; index++) {
+      if (gameHasFavoriteRedZone(games[index])) count += 1
+    }
+    return count
+  }
 
   readonly property string configHome: String(Quickshell.env("XDG_CONFIG_HOME") || "").startsWith("/")
     ? Quickshell.env("XDG_CONFIG_HOME") : Quickshell.env("HOME") + "/.config"
@@ -170,6 +181,226 @@ Item {
     return false
   }
 
+  function isFavoriteTeam(team) {
+    var abbreviation = String(team || "")
+    if (abbreviation === "") return false
+    for (var index = 0; index < favorites.length; index++) {
+      if (String(favorites[index].team || "") === abbreviation) return true
+    }
+    return false
+  }
+
+  function gameHasFavoriteRedZone(game) {
+    if (!game || game.isRedZone !== true || gameState(game) !== "live") return false
+    return isFavoriteTeam(game.possession)
+  }
+
+  function favoriteRedZoneNames(game) {
+    if (!gameHasFavoriteRedZone(game)) return ""
+    var team = String(game.possession || "")
+    var names = []
+    for (var index = 0; index < favorites.length; index++) {
+      var favorite = favorites[index]
+      if (String(favorite.team || "") !== team) continue
+      names.push(String(favorite.displayName || "Unknown player"))
+    }
+    return names.join(", ")
+  }
+
+  function eventParticipant(event, playerId) {
+    var participants = event && event.participants
+      && event.participants.length !== undefined ? event.participants : []
+    for (var index = 0; index < participants.length; index++) {
+      if (String(participants[index].playerId || "") === String(playerId || ""))
+        return participants[index]
+    }
+    return null
+  }
+
+  function buildFavoritePlayerRows() {
+    var rows = []
+    for (var favoriteIndex = 0; favoriteIndex < favorites.length; favoriteIndex++) {
+      var favorite = favorites[favoriteIndex]
+      var playerId = String(favorite.playerId || "")
+      var leader = null
+      for (var leaderIndex = 0; leaderIndex < leaderboard.length; leaderIndex++) {
+        if (String(leaderboard[leaderIndex].playerId || "") === playerId) {
+          leader = leaderboard[leaderIndex]
+          break
+        }
+      }
+
+      var latestEvent = null
+      var latestParticipant = null
+      for (var eventIndex = events.length - 1; eventIndex >= 0; eventIndex--) {
+        latestParticipant = eventParticipant(events[eventIndex], playerId)
+        if (!latestParticipant) continue
+        latestEvent = events[eventIndex]
+        break
+      }
+
+      var team = String(leader && leader.team ? leader.team : favorite.team || "")
+      var gameIds = leader && leader.gameIds && leader.gameIds.length !== undefined
+        ? leader.gameIds : []
+      var redZoneGame = null
+      for (var gameIndex = 0; gameIndex < games.length; gameIndex++) {
+        var game = games[gameIndex]
+        if (!gameHasFavoriteRedZone(game) || String(game.possession || "") !== team) continue
+        if (gameIds.length > 0 && gameIds.indexOf(String(game.id || "")) === -1) continue
+        redZoneGame = game
+        break
+      }
+
+      rows.push({
+        playerId: playerId,
+        displayName: String(leader && leader.displayName
+          ? leader.displayName : favorite.displayName || "Unknown player"),
+        team: team,
+        position: String(leader && leader.position ? leader.position : favorite.position || ""),
+        points: leader && leader.points ? leader.points : ({ppr: 0, standard: 0}),
+        stats: leader && leader.stats ? leader.stats : [],
+        gameIds: gameIds,
+        latestEvent: latestEvent,
+        latestEventToken: latestEvent ? eventToken(latestEvent) : "",
+        latestPoints: latestParticipant && latestParticipant.points
+          ? latestParticipant.points : ({ppr: 0, standard: 0}),
+        spotlight: favoriteSpotlightActive && favoriteSpotlightEvent
+          ? eventParticipant(favoriteSpotlightEvent, playerId) !== null : false,
+        redZone: redZoneGame !== null,
+        redZoneGameId: redZoneGame ? String(redZoneGame.id || "") : "",
+        redZoneDetail: redZoneGame ? String(redZoneGame.downDistance || "") : ""
+      })
+    }
+    return rows
+  }
+
+  function normalizedScoringMode(value) {
+    return String(value || "") === "standard" ? "standard" : "ppr"
+  }
+
+  function setScoringMode(value) {
+    var next = normalizedScoringMode(value)
+    if (scoringMode === next) return next
+    scoringMode = next
+    if (_favoritesLoaded) favoritesSaveTimer.restart()
+    return next
+  }
+
+  function toggleScoringMode() {
+    return setScoringMode(scoringMode === "ppr" ? "standard" : "ppr")
+  }
+
+  function validAlertPreset(value) {
+    return ["off", "all", "touchdowns", "threshold3", "threshold6"]
+      .indexOf(String(value || "")) !== -1
+  }
+
+  function setAlertPreset(value) {
+    var next = validAlertPreset(value) ? String(value) : "off"
+    if (alertPreset === next) return next
+    alertPreset = next
+    if (_favoritesLoaded) favoritesSaveTimer.restart()
+    return next
+  }
+
+  function alertThreshold() {
+    if (alertPreset === "threshold3") return 3
+    if (alertPreset === "threshold6") return 6
+    return 0
+  }
+
+  function signedPoints(value) {
+    var number = Number(value)
+    if (!isFinite(number)) number = 0
+    if (Math.abs(number) < 0.005) number = 0
+    var formatted = number.toFixed(2).replace(/\.?0+$/, "")
+    return (number > 0 ? "+" : "") + formatted
+  }
+
+  function shortPlayerName(value) {
+    var words = String(value || "Player").trim().split(/\s+/)
+    return words.length > 0 ? words[words.length - 1].toUpperCase() : "PLAYER"
+  }
+
+  function favoriteParticipants(event) {
+    var matches = []
+    var participants = event && event.participants
+      && event.participants.length !== undefined ? event.participants : []
+    for (var index = 0; index < participants.length; index++) {
+      if (isFavorite(participants[index].playerId)) matches.push(participants[index])
+    }
+    return matches
+  }
+
+  function favoriteBarLabel() {
+    var matches = favoriteParticipants(favoriteSpotlightEvent)
+    if (matches.length === 0) return "PLAY"
+    var participant = matches[0]
+    var points = participant.points ? participant.points[scoringMode] : 0
+    var label = shortPlayerName(participant.displayName) + " " + signedPoints(points)
+    return matches.length > 1 ? label + " +" + (matches.length - 1) : label
+  }
+
+  function eventIsTouchdown(event) {
+    if (String(event && event.kind ? event.kind : "").toLowerCase().indexOf("touchdown") !== -1)
+      return true
+    var participants = event && event.participants
+      && event.participants.length !== undefined ? event.participants : []
+    for (var participantIndex = 0; participantIndex < participants.length; participantIndex++) {
+      var stats = participants[participantIndex] && participants[participantIndex].stats
+        && participants[participantIndex].stats.length !== undefined
+        ? participants[participantIndex].stats : []
+      for (var statIndex = 0; statIndex < stats.length; statIndex++) {
+        if (String(stats[statIndex].key || "").toLowerCase().indexOf("touchdown") !== -1)
+          return true
+      }
+    }
+    return false
+  }
+
+  function shouldNotifyFavoriteEvent(event) {
+    if (alertPreset === "off" || !gameEnabled(event ? event.gameId : "")) return false
+    var matches = favoriteParticipants(event)
+    if (matches.length === 0) return false
+    if (alertPreset === "all") return true
+    if (alertPreset === "touchdowns") return eventIsTouchdown(event)
+    var threshold = alertThreshold()
+    for (var index = 0; index < matches.length; index++) {
+      var points = matches[index].points ? Number(matches[index].points[scoringMode]) : 0
+      if (isFinite(points) && points >= threshold) return true
+    }
+    return false
+  }
+
+  function sendFavoriteNotification(event) {
+    if (!shouldNotifyFavoriteEvent(event)) return
+    var matches = favoriteParticipants(event)
+    var labels = []
+    for (var index = 0; index < matches.length && index < 2; index++) {
+      var participant = matches[index]
+      var points = participant.points ? participant.points[scoringMode] : 0
+      labels.push(shortPlayerName(participant.displayName) + " " + signedPoints(points))
+    }
+    if (matches.length > 2) labels.push("+" + (matches.length - 2) + " more")
+    var headline = "★ " + labels.join(" · ") + " "
+      + (scoringMode === "ppr" ? "PPR" : "STD")
+    var payload = JSON.stringify({
+      tab: "favorites",
+      playerId: String(matches[0].playerId || ""),
+      eventToken: eventToken(event)
+    })
+    Quickshell.execDetached([
+      "omarchy-notification-send",
+      "--app-name", "Fantasy Feed",
+      "-g", "🏈",
+      "-u", "low",
+      "-t", "6500",
+      headline,
+      String(event.rawText || "Favorite-player fantasy play"),
+      "--exec", "omarchy-shell", "shell", "summon", "tdh.fantasy-feed", payload
+    ])
+  }
+
   function eventToken(event) {
     if (!event || typeof event !== "object") return ""
     var identity = String(event.eventId || (String(event.provider || "") + ":"
@@ -232,6 +463,7 @@ Item {
       ? eventToken(presentedEvents[presentedEvents.length - 1]) : ""
     favoriteSpotlightToken = ""
     favoriteSpotlightActive = false
+    favoriteSpotlightEvent = null
   }
 
   function stagePresentation(value) {
@@ -305,7 +537,9 @@ Item {
     if (favoriteArrival) {
       favoriteSpotlightToken = lastPresentedToken
       favoriteSpotlightActive = true
+      favoriteSpotlightEvent = event
       spotlightTimer.restart()
+      sendFavoriteNotification(event)
     }
     if (_arrivalQueue.length > 0) {
       arrivalTimer.interval = favoriteArrival
@@ -376,6 +610,11 @@ Item {
       var parsed = raw ? JSON.parse(String(raw)) : null
       var values = parsed && parsed.version === 1 && Array.isArray(parsed.favorites)
         ? parsed.favorites : []
+      var settings = parsed && parsed.version === 1 && isObject(parsed.settings)
+        ? parsed.settings : ({})
+      scoringMode = normalizedScoringMode(settings.scoringMode)
+      alertPreset = validAlertPreset(settings.alertPreset)
+        ? String(settings.alertPreset) : "off"
       var seen = ({})
       for (var index = 0; index < values.length; index++) {
         var item = values[index]
@@ -398,7 +637,11 @@ Item {
   }
 
   function saveFavorites() {
-    favoritesFile.setText(JSON.stringify({version: 1, favorites: favorites}, null, 2) + "\n")
+    favoritesFile.setText(JSON.stringify({
+      version: 1,
+      favorites: favorites,
+      settings: {scoringMode: scoringMode, alertPreset: alertPreset}
+    }, null, 2) + "\n")
   }
 
   function gameState(game) {
@@ -723,6 +966,9 @@ Item {
         leaderboardCount: root.leaderboard.length,
         favoriteCount: root.favoriteCount,
         favoriteSpotlightActive: root.favoriteSpotlightActive,
+        favoriteRedZoneGameCount: root.favoriteRedZoneGameCount,
+        scoringMode: root.scoringMode,
+        alertPreset: root.alertPreset,
         lastUpdated: root.lastUpdated,
         lastError: root.lastError,
         nextPollSeconds: root.nextPollSeconds,
