@@ -18,11 +18,11 @@ LIVE · 24 PLAYS · ★3
 ```
 
 Opening the compact panel shows the game clock and matchup, ESPN's play text, the
-current/corrected/voided lifecycle, and one compact row per player combining the
-player's name, selected points in parentheses, team, and stat deltas. A PPR/STD
-menu in the header changes every inline score and the weekly leaderboard sort
-together. Play text wraps in full instead of being truncated; unusually long
-plays grow only as much as needed. A bundled demo covers a reception, negative rush, interception,
+current/corrected/voided lifecycle, with each affected player's selected points
+inserted directly after their name in the play sentence. A PPR/STD menu in the
+header changes every inline score and the weekly leaderboard sort together.
+Play text wraps in full instead of being truncated; unusually long plays grow
+only as much as needed. A bundled demo covers a reception, negative rush, interception,
 catch-and-fumble, passing two-point conversion, and a reviewed touchdown that
 becomes voided. Positive points are green, negative points are red, and zero is
 neutral.
@@ -84,7 +84,7 @@ omarchy plugin remove tdh.fantasy-feed --yes
 - In the standalone window, use `1`/`2`/`3` for feed/leaderboard/favorites and
   `p` to toggle PPR/standard display and sorting. Select `ALL`, `QB`, `RB`, `WR`, or `TE`,
   type in the player/team search (`/` focuses it), and use `☆`/`★` to update
-  favorites.
+  favorites from the leaderboard.
 
 The same service controls are available through Omarchy shell IPC:
 

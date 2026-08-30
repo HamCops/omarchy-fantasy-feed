@@ -227,12 +227,11 @@ requests an optional immediate shared refresh.
 
 The panel is presentation-only: it contains no process, timer, provider, cache,
 or parser logic. It uses `KeyboardPanel`, `PanelKeyCatcher`, and a virtualized
-`ListView`; renders newest events first; presents one row per participant; and
-marks corrected and voided lifecycle states. Event cards use compact outer
-padding and combine each player's identity, selected score, team, and stat
-delta into a responsive row. A themed PPR/STD dropdown selects the one inline
-score shown in parentheses; the standalone window applies that same local mode
-to its leaderboard sort. Raw play text is never line-capped, so narrower
+`ListView`; renders newest events first; and marks corrected and voided
+lifecycle states. Event cards use compact outer padding. A themed PPR/STD
+dropdown selects the score inserted in parentheses directly after each
+affected player's first name occurrence in the provider play sentence; the
+standalone window applies that same local mode to its leaderboard sort. Raw play text is never line-capped, so narrower
 surfaces wrap instead of dropping context. Arrow keys and `j`/`k` move the
 monitor-local selection, `r` refreshes, `d` switches demo/live, `o` opens the
 standalone window, and `Esc` closes. The standalone leaderboard also filters
@@ -249,7 +248,9 @@ or place it like another app instead of covering the current workspace as a
 transient bar popup. It presents feed, leaderboard, and favorite-feed tabs.
 Leaderboard sorting/filtering and view selection are presentation state. The
 service persists favorite player identities atomically under Omarchy config and
-derives the favorites-only feed from normalized participant IDs.
+derives the favorites-only feed from normalized participant IDs. Favorite
+controls and structured weekly stat deltas live on leaderboard rows, keeping
+the play feed to one scored sentence per event.
 
 ## Verification
 

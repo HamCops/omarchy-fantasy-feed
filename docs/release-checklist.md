@@ -32,8 +32,10 @@ publication steps that require operator review.
   panel selection/scroll.
 - [ ] Check horizontal and vertical bars under two Omarchy themes for QML
   warnings, clipping, binding loops, and contrast.
-- [ ] Confirm dense feed cards show full play text and keep every player, stat
-  delta, PPR/STD score, lifecycle label, and standalone favorite control.
+- [ ] Confirm dense feed cards show full play text, annotate every scoring
+  player once with the selected PPR/STD value, and retain lifecycle labels.
+- [ ] Confirm structured stat deltas and favorite controls remain available on
+  standalone leaderboard rows.
 - [ ] Disable and remove the plugin, confirming no helper remains.
 
 ## Preview capture
@@ -59,4 +61,4 @@ publication steps that require operator review.
   submission copy.
 - [ ] Replace the generic install URL only after the public repository exists.
 - [ ] Repeat the automated and runtime gates from a clean checkout.
-- [ ] Tag `v0.3.3` only after every release gate passes.
+- [ ] Tag `v0.3.4` only after every release gate passes.

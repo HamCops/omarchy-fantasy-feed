@@ -155,16 +155,14 @@ class FeedUiContractTests(unittest.TestCase):
             "rawText",
             "lifecycle",
             "participants",
-            "stats",
         ):
             self.assertIn(field, self.panel)
-        self.assertIn("points[root.scoringMode]", self.panel)
+        self.assertIn("participant.points[scoringMode]", self.panel)
         self.assertIn("serviceEvents.length - 1", self.panel)
         self.assertNotIn("boxscore", self.panel.lower())
         self.assertNotIn("drives", self.panel.lower())
-        self.assertIn("stats.length === undefined", self.panel)
         self.assertNotIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.panel)
-        self.assertIn("eventCard.fantasyEvent.participants.length !== undefined", self.panel)
+        self.assertIn("event.participants.length !== undefined", self.panel)
         self.assertNotIn("Array.isArray(eventCard.fantasyEvent.participants)", self.panel)
 
     def test_game_selector_is_shared_clickable_and_presentation_only(self):
@@ -194,11 +192,14 @@ class FeedUiContractTests(unittest.TestCase):
         ):
             self.assertIn(text, self.panel)
 
-    def test_compact_participant_rows_have_concrete_responsive_heights(self):
-        self.assertRegex(
-            self.panel,
-            r"(?s)delegate: Flow \{.*?id: participantRow.*?height: implicitHeight.*?root\.signedPoints\(participantRow\.selectedPoints\).*?wrapMode: Text\.WordWrap",
-        )
+    def test_feed_scores_are_injected_into_the_raw_play_sentence(self):
+        for source in (self.panel, self.standalone):
+            self.assertIn("function playerNameMatch(playText, displayName)", source)
+            self.assertIn("function annotatedPlay(event)", source)
+            self.assertIn("textFormat: Text.StyledText", source)
+            self.assertIn("root.annotatedPlay(eventCard.", source)
+            self.assertIn('htmlEscape(signedPoints(annotation.points)) + ")</font></b>"', source)
+            self.assertNotIn("delegate: Flow {", source)
 
     def test_feed_cards_are_dense_without_truncating_play_context(self):
         for source in (self.panel, self.standalone):
@@ -207,10 +208,8 @@ class FeedUiContractTests(unittest.TestCase):
             self.assertIn("spacing: Style.space(3)", source)
             self.assertNotIn("FANTASY IMPACT · POINTS FROM THIS PLAY", source)
         self.assertNotIn("maximumLineCount: 3", self.panel)
-        self.assertIn("width: parent ? parent.width : 0", self.panel)
-        self.assertIn("width: parent ? parent.width : 0", self.standalone)
-        self.assertIn("+ root.statLabels(participantRow.participant.stats)", self.panel)
-        self.assertIn("+ root.statLabels(participantRow.participant.stats)", self.standalone)
+        self.assertNotIn("participantSummary", self.panel)
+        self.assertNotIn("participantSummary", self.standalone)
 
     def test_scoring_dropdown_controls_inline_and_leaderboard_points(self):
         for source in (self.panel, self.standalone):
@@ -218,7 +217,8 @@ class FeedUiContractTests(unittest.TestCase):
             self.assertIn('{value: "ppr", label: "PPR"}', source)
             self.assertIn('{value: "standard", label: "STD"}', source)
             self.assertIn("value: root.scoringMode", source)
-            self.assertIn('"(" + root.signedPoints(participantRow.selectedPoints) + ")"', source)
+            self.assertIn("participant.points[scoringMode]", source)
+            self.assertIn("pointsColor(annotation.points)", source)
         self.assertIn("blocked: scoringDropdown.popupOpen", self.panel)
         self.assertIn("left.points[mode]", self.standalone)
         self.assertIn("right.points[mode]", self.standalone)
@@ -227,8 +227,8 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn('readonly property color positivePoints: "#6fcf79"', self.panel)
         self.assertIn('readonly property color negativePoints: "#ff6b6b"', self.panel)
         self.assertIn("function pointsColor(value)", self.panel)
-        self.assertIn("color: root.pointsColor(participantRow.selectedPoints)", self.panel)
-        self.assertIn("color: root.pointsColor(participantRow.selectedPoints)", self.standalone)
+        self.assertIn("String(pointsColor(annotation.points))", self.panel)
+        self.assertIn("String(pointsColor(annotation.points))", self.standalone)
 
     def test_panel_exposes_automatic_refresh_countdown(self):
         self.assertIn("function autoRefreshLabel()", self.panel)

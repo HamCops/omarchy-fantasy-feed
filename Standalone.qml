@@ -116,6 +116,57 @@ Item {
     return labels.length > 0 ? labels.join(" · ") : "NO STAT DELTA"
   }
 
+  function htmlEscape(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+  }
+
+  function regexEscape(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  }
+
+  function playerNameMatch(playText, displayName) {
+    var words = String(displayName || "").trim().split(/\s+/)
+    if (words.length === 0 || words[0] === "") return null
+    var exact = new RegExp("\\b" + regexEscape(words.join(" ")).replace(/ /g, "\\s+") + "\\b", "i")
+    var exactMatch = exact.exec(playText)
+    if (exactMatch) return exactMatch
+    while (words.length > 2 && /^(Jr\.?|Sr\.?|II|III|IV)$/i.test(words[words.length - 1])) words.pop()
+    if (words.length < 2) return null
+    return new RegExp("\\b" + regexEscape(words[0].charAt(0)) + "\\.?\\s*"
+      + regexEscape(words[words.length - 1]) + "\\b", "i").exec(playText)
+  }
+
+  function annotatedPlay(event) {
+    var raw = String(event && event.rawText ? event.rawText : "Play text unavailable")
+    var participants = event && event.participants && event.participants.length !== undefined
+      ? event.participants : []
+    var annotations = []
+    for (var index = 0; index < participants.length; index++) {
+      var participant = participants[index]
+      var match = playerNameMatch(raw, participant ? participant.displayName : "")
+      if (!match) continue
+      var points = participant && participant.points ? participant.points[scoringMode] : 0
+      annotations.push({start: match.index, end: match.index + match[0].length, points: points})
+    }
+    annotations.sort(function(left, right) { return left.start - right.start })
+    var result = ""
+    var cursor = 0
+    for (var annotationIndex = 0; annotationIndex < annotations.length; annotationIndex++) {
+      var annotation = annotations[annotationIndex]
+      if (annotation.start < cursor) continue
+      result += htmlEscape(raw.slice(cursor, annotation.end))
+      result += " <b><font color=\"" + htmlEscape(String(pointsColor(annotation.points))) + "\">("
+        + htmlEscape(signedPoints(annotation.points)) + ")</font></b>"
+      cursor = annotation.end
+    }
+    return result + htmlEscape(raw.slice(cursor))
+  }
+
   function stateLabel() {
     if (!service) return "OFFLINE"
     if (service.stale) return "STALE"
@@ -435,7 +486,8 @@ Item {
 
                 Text {
                   width: parent.width
-                  text: String(eventCard.eventData.rawText || "Play text unavailable")
+                  text: root.annotatedPlay(eventCard.eventData)
+                  textFormat: Text.StyledText
                   color: root.foreground
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -451,69 +503,6 @@ Item {
                   font.bold: true
                 }
 
-                Repeater {
-                  model: eventCard.eventData.participants
-                    && eventCard.eventData.participants.length !== undefined
-                      ? eventCard.eventData.participants : []
-                  delegate: Item {
-                    id: participantRow
-                    required property var modelData
-                    readonly property var participant: modelData
-                    readonly property var participantPoints: participant && participant.points ? participant.points : ({})
-                    readonly property real selectedPoints: Number(participantPoints[root.scoringMode] || 0)
-                    width: parent ? parent.width : 0
-                    height: Math.max(participantFlow.implicitHeight, favoriteButton.implicitHeight)
-
-                    Button {
-                      id: favoriteButton
-                      anchors.right: parent.right
-                      anchors.verticalCenter: parent.verticalCenter
-                      text: root.isFavorite(participantRow.participant.playerId) ? "★" : "☆"
-                      tooltipText: root.isFavorite(participantRow.participant.playerId)
-                        ? "Remove favorite" : "Favorite player"
-                      foreground: root.isFavorite(participantRow.participant.playerId) ? root.positivePoints : root.foreground
-                      fontFamily: root.fontFamily
-                      fontSize: Style.font.bodySmall
-                      onClicked: root.toggleFavorite(participantRow.participant)
-                    }
-
-                    Flow {
-                      id: participantFlow
-                      anchors.left: parent.left
-                      anchors.right: favoriteButton.left
-                      anchors.rightMargin: Style.space(8)
-                      height: implicitHeight
-                      spacing: Style.space(4)
-
-                      Text {
-                        text: String(participantRow.participant.displayName || "Unknown player").toUpperCase()
-                        color: root.foreground
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.bodySmall
-                        font.bold: true
-                      }
-
-                      Text {
-                        text: "(" + root.signedPoints(participantRow.selectedPoints) + ")"
-                        color: root.pointsColor(participantRow.selectedPoints)
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.bodySmall
-                        font.bold: true
-                      }
-
-                      Text {
-                        width: Math.min(implicitWidth, participantFlow.width)
-                        text: (participantRow.participant.team
-                            ? "· " + String(participantRow.participant.team) + " · " : "· ")
-                          + root.statLabels(participantRow.participant.stats)
-                        color: Qt.darker(root.foreground, 1.2)
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.bodySmall
-                        wrapMode: Text.WordWrap
-                      }
-                    }
-                  }
-                }
               }
             }
           }
