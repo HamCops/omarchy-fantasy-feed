@@ -430,12 +430,17 @@ def create_server(
 
         def send_json(self, status: int, payload: Mapping[str, Any]) -> None:
             body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                # Normal when a load-test client exits while parallel requests
+                # are still completing or the simulator receives Ctrl+C.
+                return
 
         def do_GET(self) -> None:
             state.request_started()
@@ -445,7 +450,9 @@ def create_server(
                 parsed = urllib.parse.urlsplit(self.path)
                 if parsed.path == SCOREBOARD_PATH and not parsed.query:
                     payload = state.scoreboard()
-                    if log_ticks:
+                    if log_ticks and (
+                        state.current_tick() == 1 or state.current_tick() % 10 == 0
+                    ):
                         print(
                             f"simulator tick {state.current_tick()}: "
                             f"{state.games} games, {state.current_tick() * state.games} plays exposed",
