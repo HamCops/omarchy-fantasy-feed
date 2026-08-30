@@ -118,8 +118,22 @@ Panel {
   function autoRefreshLabel() {
     if (!feedService) return "AUTO REFRESH OFFLINE"
     if (feedService.loading) return "AUTO REFRESHING"
-    if (feedService.nextPollSeconds > 0) return "AUTO REFRESH " + feedService.nextPollSeconds + "s"
+    if (feedService.nextPollSeconds > 0)
+      return "AUTO REFRESH " + countdownLabel(feedService.nextPollSeconds)
     return "AUTO REFRESH ON"
+  }
+
+  function countdownLabel(seconds) {
+    var remaining = Math.max(0, Number(seconds) || 0)
+    if (remaining < 90) return Math.ceil(remaining) + "s"
+    if (remaining < 3600) return Math.ceil(remaining / 60) + "m"
+    var hours = Math.floor(remaining / 3600)
+    var minutes = Math.ceil((remaining - hours * 3600) / 60)
+    if (minutes >= 60) {
+      hours += 1
+      minutes = 0
+    }
+    return hours + "h" + (minutes > 0 ? " " + minutes + "m" : "")
   }
 
   function statLabels(stats) {
@@ -236,7 +250,7 @@ Panel {
             id: headerGlyph
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: root.feedService && root.feedService.loading ? "󰦖" : "󰇎"
+            text: root.feedService && root.feedService.loading ? "󰦖" : "🏈"
             color: root.feedService && root.feedService.stale ? root.contentUrgent : root.contentForeground
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.display
@@ -362,7 +376,7 @@ Panel {
 
             Text {
               anchors.horizontalCenter: parent.horizontalCenter
-              text: root.feedService && root.feedService.loading ? "󰦖" : "󰇎"
+              text: root.feedService && root.feedService.loading ? "󰦖" : "🏈"
               color: root.contentForeground
               font.family: root.contentFontFamily
               font.pixelSize: Style.font.displayLarge

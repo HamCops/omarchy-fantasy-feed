@@ -99,7 +99,7 @@ BarWidget {
     anchors.fill: parent
     bar: root.bar
     text: {
-      var glyph = root.feedLoading ? "󰦖" : "󰇎"
+      var glyph = root.feedLoading ? "󰦖" : "🏈"
       if (root.vertical) return glyph
       return glyph + "  " + root.barLabel()
     }

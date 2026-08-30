@@ -18,8 +18,9 @@ publication steps that require operator review.
 - [ ] Install from the committed local clone with
   `omarchy plugin add "file://$PWD" --enable --yes`.
 - [ ] Confirm live, scheduled/final, demo, and stale-cache states.
-- [ ] Confirm automatic refresh countdown and that compact panel plus
-  standalone window share one helper process.
+- [ ] Confirm the adaptive refresh countdown for live, near/far kickoff,
+  final/idle, and failure-backoff states, and that compact panel plus standalone
+  window share one helper process.
 - [ ] Confirm left click, middle-click refresh, pop-out, panel buttons, and every
   documented key.
 - [ ] Confirm PPR/standard sorting, all four position filters, favorite
@@ -55,4 +56,4 @@ publication steps that require operator review.
   submission copy.
 - [ ] Replace the generic install URL only after the public repository exists.
 - [ ] Repeat the automated and runtime gates from a clean checkout.
-- [ ] Tag `v0.3.0` only after every release gate passes.
+- [ ] Tag `v0.3.1` only after every release gate passes.

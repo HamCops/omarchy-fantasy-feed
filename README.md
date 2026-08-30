@@ -68,7 +68,9 @@ omarchy plugin remove tdh.fantasy-feed --yes
 
 - Left-click the bar item to open or close the feed.
 - The feed refreshes automatically: every 15 seconds during live games, every
-  60 seconds while scheduled/offline, and every 300 seconds after games end.
+  30 seconds in the final 10 minutes before kickoff, every 2 minutes during the
+  preceding hour, and every 15 minutes when kickoff is farther away. Once the
+  slate is final it sleeps until a 6:00 AM local daily schedule check.
 - Middle-click or **Refresh** requests an optional immediate refresh.
 - Use **Demo/Live** to switch data modes and **↗** (or `o`) to pop out.
 - Click any matchup in the game strip to add or remove that game. Any number of
@@ -156,9 +158,13 @@ winning. This prevents live fantasy plays from arriving in a batch only after
 the drive ends.
 
 The singleton service permits only one helper process for every monitor and
-for the standalone window. It
-polls every 15 seconds during live games, 60 seconds for scheduled or failed
-refreshes, and 300 seconds for idle/final states, with an 18-second watchdog.
+for the standalone window. Its one-shot scheduler inspects every game rather
+than trusting only the aggregate slate state, so a final Thursday game cannot
+hide scheduled Sunday games. Live polling runs every 15 seconds; scheduled
+polling tightens from 15 minutes to 2 minutes to 30 seconds as kickoff nears.
+An entirely final/idle slate sleeps until the next 6:00 AM local check. Failed
+refreshes back off through 1, 2, 5, and 15 minutes. The helper retains its
+18-second watchdog and never overlaps another refresh.
 
 Fresh live data is written atomically to a mode-`0600` last-good cache at:
 

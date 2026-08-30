@@ -49,6 +49,7 @@ class ServiceBoundaryTests(unittest.TestCase):
             "lastError",
             "lastUpdated",
             "nextPollSeconds",
+            "nextPollReason",
             "demoMode",
         ):
             self.assertRegex(self.source, rf"property [^\n]*\b{property_name}\b")
@@ -57,7 +58,30 @@ class ServiceBoundaryTests(unittest.TestCase):
             self.assertIn(f"function {method_name}(): string", self.source)
         self.assertIn("readonly property int livePollSeconds: 15", self.source)
         self.assertIn("readonly property int scheduledPollSeconds: 60", self.source)
-        self.assertIn("readonly property int idlePollSeconds: 300", self.source)
+        self.assertIn("readonly property int kickoffPollSeconds: 30", self.source)
+        self.assertIn("readonly property int nearKickoffPollSeconds: 120", self.source)
+        self.assertIn("readonly property int distantKickoffPollSeconds: 900", self.source)
+        self.assertIn("readonly property var failureBackoffSchedule: [60, 120, 300, 900]", self.source)
+        self.assertNotIn("idlePollSeconds", self.source)
+
+    def test_service_uses_game_aware_deadlines_and_failure_backoff(self):
+        for method_name in (
+            "gameState",
+            "secondsUntilDailyCheck",
+            "failureDecision",
+            "pollDecisionFor",
+        ):
+            self.assertIn(f"function {method_name}(", self.source)
+        for reason in (
+            "live game",
+            "kickoff within 10 minutes",
+            "kickoff within 1 hour",
+            "scheduled game more than 1 hour away",
+            "all games final; daily 06:00 check",
+        ):
+            self.assertIn(reason, self.source)
+        self.assertIn("_consecutiveFailures += 1", self.source)
+        self.assertIn("_consecutiveFailures = 0", self.source)
 
     def test_service_owns_shared_multi_game_selection(self):
         self.assertIn("property var hiddenGameIds", self.source)
@@ -106,6 +130,11 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("buttonCode === Qt.MiddleButton", self.bar)
         self.assertIn("root.feedService.refresh()", self.bar)
         self.assertNotRegex(self.bar, r"(?m)^\s*(Process|Timer)\s*\{")
+
+    def test_all_surfaces_use_football_branding(self):
+        for source in (self.bar, self.panel, self.standalone):
+            self.assertIn("🏈", source)
+            self.assertNotIn("󰇎", source)
 
     def test_panel_is_a_presentation_only_keyboard_panel(self):
         self.assertRegex(self.panel, r"(?m)^Panel \{")
@@ -183,6 +212,8 @@ class FeedUiContractTests(unittest.TestCase):
 
     def test_panel_exposes_automatic_refresh_countdown(self):
         self.assertIn("function autoRefreshLabel()", self.panel)
+        self.assertIn("function countdownLabel(seconds)", self.panel)
+        self.assertIn("function countdownLabel(seconds)", self.standalone)
         self.assertIn("AUTO REFRESH", self.panel)
 
     def test_standalone_window_has_feed_leaderboard_and_favorites(self):

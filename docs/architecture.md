@@ -196,19 +196,27 @@ cache snapshot and exposes its error. Any other status, invalid JSON, invalid
 schema, or the 18-second watchdog keeps the last in-memory snapshot visible and
 marks it stale.
 
-Polling adapts to source state:
+Polling is a one-shot decision based on individual normalized games:
 
-| State | Next refresh |
+| Slate condition | Next refresh |
 | --- | ---: |
-| Live | 15 seconds |
-| Scheduled | 60 seconds |
-| Refresh failure/offline/malformed | 60 seconds |
-| Idle/final | 300 seconds |
+| Any game live | 15 seconds |
+| Scheduled kickoff within 10 minutes | 30 seconds |
+| Scheduled kickoff within 1 hour | 2 minutes |
+| Scheduled kickoff more than 1 hour away | 15 minutes |
+| Scheduled game with no usable start time | 60 seconds |
+| All games final or no games | Next 6:00 AM local check |
+| Consecutive refresh failures | 1, 2, 5, then 15 minutes |
+
+Looking at each game avoids the aggregate-state edge case where an already
+final game and a future scheduled game share one slate. A successful refresh
+resets failure backoff; manual refresh remains available during every wait.
 
 Component destruction stops timers, the watchdog, and any active helper. The
 IPC target `tdh.fantasy-feed` exposes `status`, `refresh`, `demo`, and `live`;
 status includes mode, loading/stale state, source state, event count, last
-update/error, and the countdown to the next poll.
+update/error, countdown and reason for the next poll, and consecutive failure
+count.
 
 ## UI contract
 
@@ -250,7 +258,7 @@ omarchy plugin validate "$PWD"
 git diff --check
 ```
 
-On 2026-08-29 this checkout passed all 73 tests and
+On 2026-08-29 this checkout passed all 75 tests and
 `omarchy plugin validate "$PWD"`.
 
 The current suite covers every scoring row, stable identity resolution,

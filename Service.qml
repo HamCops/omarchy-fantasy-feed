@@ -68,6 +68,7 @@ Item {
   property string lastError: ""
   property string lastUpdated: ""
   property int nextPollSeconds: 0
+  property string nextPollReason: ""
   property bool demoMode: false
 
   property string _sourceDir: ""
@@ -77,6 +78,7 @@ Item {
   property bool _timedOut: false
   property bool _refreshAfterExit: false
   property bool _favoritesLoaded: false
+  property int _consecutiveFailures: 0
 
   readonly property string configHome: String(Quickshell.env("XDG_CONFIG_HOME") || "").startsWith("/")
     ? Quickshell.env("XDG_CONFIG_HOME") : Quickshell.env("HOME") + "/.config"
@@ -84,7 +86,11 @@ Item {
 
   readonly property int livePollSeconds: 15
   readonly property int scheduledPollSeconds: 60
-  readonly property int idlePollSeconds: 300
+  readonly property int kickoffPollSeconds: 30
+  readonly property int nearKickoffPollSeconds: 120
+  readonly property int distantKickoffPollSeconds: 900
+  readonly property var failureBackoffSchedule: [60, 120, 300, 900]
+  readonly property int dailyCheckHour: 6
   readonly property int watchdogMilliseconds: 18000
 
   function compactError(value) {
@@ -227,19 +233,83 @@ Item {
     favoritesFile.setText(JSON.stringify({version: 1, favorites: favorites}, null, 2) + "\n")
   }
 
-  function pollSecondsFor(value, failed) {
-    if (failed) return scheduledPollSeconds
-    var state = value ? String(value.sourceState || "") : ""
-    if (state === "live") return livePollSeconds
-    if (state === "scheduled" || state === "offline" || state === "malformed")
-      return scheduledPollSeconds
-    return idlePollSeconds
+  function gameState(game) {
+    return String(game && (game.state || game.status) ? (game.state || game.status) : "")
+      .toLowerCase()
   }
 
-  function schedulePoll(seconds) {
+  function secondsUntilDailyCheck(nowMilliseconds) {
+    var now = new Date(nowMilliseconds)
+    var next = new Date(
+      now.getFullYear(), now.getMonth(), now.getDate(), dailyCheckHour, 0, 0, 0)
+    if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1)
+    return Math.max(60, Math.ceil((next.getTime() - now.getTime()) / 1000))
+  }
+
+  function failureDecision() {
+    var index = Math.max(0,
+      Math.min(_consecutiveFailures - 1, failureBackoffSchedule.length - 1))
+    return {
+      seconds: failureBackoffSchedule[index],
+      reason: "retry backoff " + (index + 1) + "/" + failureBackoffSchedule.length
+    }
+  }
+
+  function pollDecisionFor(value, failed, nowMilliseconds) {
+    if (failed) return failureDecision()
+
+    var now = Number(nowMilliseconds)
+    if (!isFinite(now) || now <= 0) now = Date.now()
+    var gameValues = value && Array.isArray(value.games) ? value.games : []
+    var hasLiveGame = false
+    var scheduledWithoutTime = false
+    var earliestStart = Number.POSITIVE_INFINITY
+
+    for (var index = 0; index < gameValues.length; index++) {
+      var game = gameValues[index]
+      var state = gameState(game)
+      if (state === "live") {
+        hasLiveGame = true
+        continue
+      }
+      if (state !== "scheduled") continue
+      var start = Date.parse(String(game.startTime || ""))
+      if (isFinite(start)) earliestStart = Math.min(earliestStart, start)
+      else scheduledWithoutTime = true
+    }
+
+    if (hasLiveGame)
+      return {seconds: livePollSeconds, reason: "live game"}
+
+    if (isFinite(earliestStart)) {
+      var untilKickoff = Math.max(0, Math.ceil((earliestStart - now) / 1000))
+      if (untilKickoff <= 10 * 60)
+        return {seconds: kickoffPollSeconds, reason: "kickoff within 10 minutes"}
+      if (untilKickoff <= 60 * 60)
+        return {seconds: nearKickoffPollSeconds, reason: "kickoff within 1 hour"}
+      return {
+        seconds: distantKickoffPollSeconds,
+        reason: "scheduled game more than 1 hour away"
+      }
+    }
+
+    var sourceState = value ? String(value.sourceState || "") : ""
+    if (scheduledWithoutTime || sourceState === "scheduled")
+      return {seconds: scheduledPollSeconds, reason: "scheduled game time unavailable"}
+    if (sourceState === "live")
+      return {seconds: livePollSeconds, reason: "live source fallback"}
+
+    return {
+      seconds: secondsUntilDailyCheck(now),
+      reason: "all games final; daily 06:00 check"
+    }
+  }
+
+  function schedulePoll(seconds, reason) {
     pollTimer.stop()
     countdownTimer.stop()
-    nextPollSeconds = Math.max(1, Number(seconds) || idlePollSeconds)
+    nextPollSeconds = Math.max(1, Number(seconds) || scheduledPollSeconds)
+    nextPollReason = String(reason || "scheduled refresh")
     pollTimer.interval = nextPollSeconds * 1000
     pollTimer.start()
     countdownTimer.start()
@@ -248,8 +318,10 @@ Item {
   function finishFailure(message) {
     loading = false
     _refreshFailed = true
+    _consecutiveFailures += 1
     lastError = compactError(message) || "Fantasy feed refresh failed"
-    schedulePoll(pollSecondsFor(snapshot, true))
+    var decision = pollDecisionFor(snapshot, true)
+    schedulePoll(decision.seconds, decision.reason)
   }
 
   function applyOutput(exitCode, output, errorOutput) {
@@ -272,14 +344,18 @@ Item {
 
     snapshot = value
     loading = false
-    _refreshFailed = false
     lastUpdated = value.observedAt
     if (exitCode === 10) {
+      _refreshFailed = true
+      _consecutiveFailures += 1
       lastError = snapshotError(value) || "Live data unavailable; showing cached feed"
     } else {
+      _refreshFailed = false
+      _consecutiveFailures = 0
       lastError = ""
     }
-    schedulePoll(pollSecondsFor(value, exitCode === 10))
+    var decision = pollDecisionFor(value, exitCode === 10)
+    schedulePoll(decision.seconds, decision.reason)
   }
 
   function helperCommand() {
@@ -296,6 +372,7 @@ Item {
     pollTimer.stop()
     countdownTimer.stop()
     nextPollSeconds = 0
+    nextPollReason = ""
     _stdout = ""
     _stderr = ""
     _timedOut = false
@@ -429,7 +506,9 @@ Item {
         favoriteCount: root.favoriteCount,
         lastUpdated: root.lastUpdated,
         lastError: root.lastError,
-        nextPollSeconds: root.nextPollSeconds
+        nextPollSeconds: root.nextPollSeconds,
+        nextPollReason: root.nextPollReason,
+        consecutiveFailures: root._consecutiveFailures
       })
     }
 

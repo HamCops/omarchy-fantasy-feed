@@ -133,8 +133,22 @@ Item {
   function autoRefreshLabel() {
     if (!service) return "AUTO REFRESH OFFLINE"
     if (service.loading) return "AUTO REFRESHING"
-    if (service.nextPollSeconds > 0) return "AUTO REFRESH " + service.nextPollSeconds + "s"
+    if (service.nextPollSeconds > 0)
+      return "AUTO REFRESH " + countdownLabel(service.nextPollSeconds)
     return "AUTO REFRESH ON"
+  }
+
+  function countdownLabel(seconds) {
+    var remaining = Math.max(0, Number(seconds) || 0)
+    if (remaining < 90) return Math.ceil(remaining) + "s"
+    if (remaining < 3600) return Math.ceil(remaining / 60) + "m"
+    var hours = Math.floor(remaining / 3600)
+    var minutes = Math.ceil((remaining - hours * 3600) / 60)
+    if (minutes >= 60) {
+      hours += 1
+      minutes = 0
+    }
+    return hours + "h" + (minutes > 0 ? " " + minutes + "m" : "")
   }
 
   function isFavorite(playerId) {
@@ -201,7 +215,7 @@ Item {
             Row {
               spacing: Style.space(8)
               Text {
-                text: "󰇎  Fantasy Feed"
+                text: "🏈  Fantasy Feed"
                 color: root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.title
