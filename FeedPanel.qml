@@ -417,7 +417,7 @@ Panel {
           visible: root.hasEvents
           width: parent.width
           height: visible ? Math.min(contentHeight, Style.space(470)) : 0
-          spacing: Style.space(8)
+          spacing: Style.space(4)
           clip: true
           boundsBehavior: Flickable.StopAtBounds
           interactive: contentHeight > height
@@ -435,7 +435,7 @@ Panel {
             readonly property var fantasyEvent: modelData
 
             width: ListView.view.width
-            height: eventColumn.implicitHeight + Style.space(18)
+            height: eventColumn.implicitHeight + Style.space(12)
             foreground: root.contentForeground
             accent: Color.accent
             bordered: true
@@ -454,8 +454,8 @@ Panel {
               anchors.left: parent.left
               anchors.right: parent.right
               anchors.top: parent.top
-              anchors.margins: Style.space(9)
-              spacing: Style.space(5)
+              anchors.margins: Style.space(6)
+              spacing: Style.space(3)
 
               Item {
                 width: parent.width
@@ -495,8 +495,6 @@ Panel {
                 font.family: root.contentFontFamily
                 font.pixelSize: Style.font.bodySmall
                 wrapMode: Text.WordWrap
-                maximumLineCount: 3
-                elide: Text.ElideRight
               }
 
               Text {
@@ -509,97 +507,71 @@ Panel {
                 font.bold: true
               }
 
-              Text {
-                visible: eventCard.fantasyEvent.lifecycle !== "voided"
-                  && eventCard.fantasyEvent.participants
-                  && eventCard.fantasyEvent.participants.length !== undefined
-                  && eventCard.fantasyEvent.participants.length > 0
-                width: parent.width
-                text: "FANTASY IMPACT · POINTS FROM THIS PLAY"
-                color: Color.accent
-                font.family: root.contentFontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-
               Repeater {
                 model: eventCard.fantasyEvent.participants
                   && eventCard.fantasyEvent.participants.length !== undefined
                     ? eventCard.fantasyEvent.participants : []
 
-                delegate: Column {
+                delegate: Item {
                   id: participantRow
                   required property var modelData
                   readonly property var participant: modelData
                   readonly property var points: participant && participant.points ? participant.points : ({})
 
                   width: parent.width
-                  height: implicitHeight
-                  spacing: Style.space(2)
+                  height: Math.max(participantSummary.implicitHeight, pointLine.implicitHeight)
 
-                  Item {
-                    width: parent.width
-                    implicitHeight: Math.max(playerName.implicitHeight, pointLine.implicitHeight)
-                    height: implicitHeight
+                  Text {
+                    id: participantSummary
+                    anchors.left: parent.left
+                    anchors.right: pointLine.left
+                    anchors.rightMargin: Style.space(8)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: String(participantRow.participant.displayName || "Unknown player").toUpperCase()
+                      + (participantRow.participant.team ? " · " + String(participantRow.participant.team) : "")
+                      + " · " + root.statLabels(participantRow.participant.stats)
+                    color: root.contentForeground
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                    wrapMode: Text.WordWrap
+                  }
+
+                  Row {
+                    id: pointLine
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Style.space(4)
 
                     Text {
-                      id: playerName
-                      anchors.left: parent.left
-                      anchors.right: pointLine.left
-                      anchors.rightMargin: Style.space(8)
-                      text: String(participantRow.participant.displayName || "Unknown player").toUpperCase()
-                        + (participantRow.participant.team ? " · " + String(participantRow.participant.team) : "")
-                      color: root.contentForeground
+                      text: "PPR"
+                      color: Qt.darker(root.contentForeground, 1.35)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
+                    }
+
+                    Text {
+                      text: root.signedPoints(participantRow.points.ppr)
+                      color: root.pointsColor(participantRow.points.ppr)
                       font.family: root.contentFontFamily
                       font.pixelSize: Style.font.bodySmall
                       font.bold: true
-                      elide: Text.ElideRight
                     }
 
-                    Row {
-                      id: pointLine
-                      anchors.right: parent.right
-                      spacing: Style.space(4)
-
-                      Text {
-                        text: "PPR"
-                        color: Qt.darker(root.contentForeground, 1.35)
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.font.bodySmall
-                      }
-
-                      Text {
-                        text: root.signedPoints(participantRow.points.ppr)
-                        color: root.pointsColor(participantRow.points.ppr)
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.font.bodySmall
-                        font.bold: true
-                      }
-
-                      Text {
-                        text: "· STD"
-                        color: Qt.darker(root.contentForeground, 1.35)
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.font.bodySmall
-                      }
-
-                      Text {
-                        text: root.signedPoints(participantRow.points.standard)
-                        color: root.pointsColor(participantRow.points.standard)
-                        font.family: root.contentFontFamily
-                        font.pixelSize: Style.font.bodySmall
-                        font.bold: true
-                      }
+                    Text {
+                      text: "· STD"
+                      color: Qt.darker(root.contentForeground, 1.35)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
                     }
-                  }
 
-                  Text {
-                    width: parent.width
-                    text: root.statLabels(participantRow.participant.stats)
-                    color: Qt.darker(root.contentForeground, 1.35)
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
-                    wrapMode: Text.WordWrap
+                    Text {
+                      text: root.signedPoints(participantRow.points.standard)
+                      color: root.pointsColor(participantRow.points.standard)
+                      font.family: root.contentFontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                    }
                   }
                 }
               }

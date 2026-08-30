@@ -18,11 +18,13 @@ LIVE · 24 PLAYS · ★3
 ```
 
 Opening the compact panel shows the game clock and matchup, ESPN's play text, the
-current/corrected/voided lifecycle, and one clearly labeled fantasy-impact row
-per player with the PPR and standard points created by that play. A bundled
-demo covers a reception, negative rush, interception, catch-and-fumble, passing
-two-point conversion, and a reviewed touchdown that becomes voided. Positive
-points are green, negative points are red, and zero is neutral.
+current/corrected/voided lifecycle, and one compact row per player combining the
+team, stat deltas, and PPR/standard points created by that play. Play text wraps
+in full instead of being truncated; unusually long plays grow only as much as
+needed. A bundled demo covers a reception, negative rush, interception,
+catch-and-fumble, passing two-point conversion, and a reviewed touchdown that
+becomes voided. Positive points are green, negative points are red, and zero is
+neutral.
 
 Pop the panel into a normal movable/tileable window for three views: the full
 feed, a weekly QB/RB/WR/TE leaderboard sortable by PPR or standard points, and

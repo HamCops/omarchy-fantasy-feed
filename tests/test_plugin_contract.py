@@ -164,7 +164,7 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertNotIn("boxscore", self.panel.lower())
         self.assertNotIn("drives", self.panel.lower())
         self.assertIn("stats.length === undefined", self.panel)
-        self.assertIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.panel)
+        self.assertNotIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.panel)
         self.assertIn("eventCard.fantasyEvent.participants.length !== undefined", self.panel)
         self.assertNotIn("Array.isArray(eventCard.fantasyEvent.participants)", self.panel)
 
@@ -195,13 +195,21 @@ class FeedUiContractTests(unittest.TestCase):
         ):
             self.assertIn(text, self.panel)
 
-    def test_positioned_participant_rows_have_concrete_heights(self):
-        participant = self.panel.split("delegate: Column {", 1)[1]
-        self.assertIn("height: implicitHeight", participant)
+    def test_compact_participant_rows_have_concrete_responsive_heights(self):
         self.assertRegex(
-            participant,
-            r"implicitHeight: Math\.max\(playerName\.implicitHeight, pointLine\.implicitHeight\)\s+height: implicitHeight",
+            self.panel,
+            r"(?s)id: participantRow.*?height: Math\.max\(participantSummary\.implicitHeight, pointLine\.implicitHeight\).*?id: participantSummary.*?wrapMode: Text\.WordWrap",
         )
+
+    def test_feed_cards_are_dense_without_truncating_play_context(self):
+        for source in (self.panel, self.standalone):
+            self.assertIn("height: eventColumn.implicitHeight + Style.space(12)", source)
+            self.assertIn("anchors.margins: Style.space(6)", source)
+            self.assertIn("spacing: Style.space(3)", source)
+            self.assertNotIn("FANTASY IMPACT · POINTS FROM THIS PLAY", source)
+        self.assertNotIn("maximumLineCount: 3", self.panel)
+        self.assertIn('+ " · " + root.statLabels(participantRow.participant.stats)', self.panel)
+        self.assertIn('+ " · " + root.statLabels(participantRow.participant.stats)', self.standalone)
 
     def test_points_use_positive_negative_and_neutral_colors(self):
         self.assertIn('readonly property color positivePoints: "#6fcf79"', self.panel)
@@ -222,7 +230,7 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn('property string scoringMode: "ppr"', self.standalone)
         self.assertIn('["ALL", "QB", "RB", "WR", "TE"]', self.standalone)
         self.assertIn("service.visibleFavoriteEvents", self.standalone)
-        self.assertIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.standalone)
+        self.assertNotIn("FANTASY IMPACT · POINTS FROM THIS PLAY", self.standalone)
         self.assertNotIn("Array.isArray(eventCard.eventData.participants)", self.standalone)
         self.assertIn("service.toggleFavorite(player)", self.standalone)
         self.assertIn('placeholderText: "Search player or team…  /"', self.standalone)

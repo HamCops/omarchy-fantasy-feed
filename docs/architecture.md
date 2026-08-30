@@ -228,10 +228,13 @@ requests an optional immediate shared refresh.
 The panel is presentation-only: it contains no process, timer, provider, cache,
 or parser logic. It uses `KeyboardPanel`, `PanelKeyCatcher`, and a virtualized
 `ListView`; renders newest events first; presents one row per participant; and
-marks corrected and voided lifecycle states. Arrow keys and `j`/`k` move the
+marks corrected and voided lifecycle states. Event cards use compact outer
+padding and combine each player's identity, team, stat delta, PPR, and STD
+score into a responsive row. Raw play text is never line-capped, so narrower
+surfaces wrap instead of dropping context. Arrow keys and `j`/`k` move the
 monitor-local selection, `r` refreshes, `d` switches demo/live, `o` opens the
-standalone window, and `Esc` closes. The standalone leaderboard also filters by
-player name, team, or position, with `/` focusing its search field.
+standalone window, and `Esc` closes. The standalone leaderboard also filters
+by player name, team, or position, with `/` focusing its search field.
 
 `GameSelector.qml` is a shared presentation component for the compact and
 standalone surfaces. The singleton service owns a set of hidden game IDs and
@@ -258,7 +261,7 @@ omarchy plugin validate "$PWD"
 git diff --check
 ```
 
-On 2026-08-29 this checkout passed all 75 tests and
+On 2026-08-29 this checkout passed all 76 tests and
 `omarchy plugin validate "$PWD"`.
 
 The current suite covers every scoring row, stable identity resolution,

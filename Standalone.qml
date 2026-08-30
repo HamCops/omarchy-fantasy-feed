@@ -379,7 +379,7 @@ Item {
             id: feedList
             anchors.fill: parent
             visible: root.activeTab !== "leaders" && root.displayedEvents.length > 0
-            spacing: Style.space(8)
+            spacing: Style.space(4)
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             model: root.displayedEvents
@@ -390,7 +390,7 @@ Item {
               required property var modelData
               readonly property var eventData: modelData
               width: ListView.view.width
-              height: eventColumn.implicitHeight + Style.space(18)
+              height: eventColumn.implicitHeight + Style.space(12)
               color: "transparent"
               border.width: 1
               border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
@@ -400,8 +400,8 @@ Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.margins: Style.space(9)
-                spacing: Style.space(5)
+                anchors.margins: Style.space(6)
+                spacing: Style.space(3)
 
                 Item {
                   width: parent.width
@@ -447,18 +447,6 @@ Item {
                   font.bold: true
                 }
 
-                Text {
-                  visible: eventCard.eventData.lifecycle !== "voided"
-                    && eventCard.eventData.participants
-                    && eventCard.eventData.participants.length !== undefined
-                    && eventCard.eventData.participants.length > 0
-                  text: "FANTASY IMPACT · POINTS FROM THIS PLAY"
-                  color: Color.accent
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                }
-
                 Repeater {
                   model: eventCard.eventData.participants
                     && eventCard.eventData.participants.length !== undefined
@@ -469,32 +457,22 @@ Item {
                     readonly property var participant: modelData
                     readonly property var participantPoints: participant && participant.points ? participant.points : ({})
                     width: parent.width
-                    height: Math.max(participantText.implicitHeight, participantActions.implicitHeight)
+                    height: Math.max(participantSummary.implicitHeight, participantActions.implicitHeight)
 
-                    Column {
-                      id: participantText
+                    Text {
+                      id: participantSummary
                       anchors.left: parent.left
                       anchors.right: participantActions.left
                       anchors.rightMargin: Style.space(8)
-                      spacing: Style.space(1)
-                      Text {
-                        width: parent.width
-                        text: String(participantRow.participant.displayName || "Unknown player").toUpperCase()
-                          + (participantRow.participant.team ? " · " + participantRow.participant.team : "")
-                        color: root.foreground
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.bodySmall
-                        font.bold: true
-                        elide: Text.ElideRight
-                      }
-                      Text {
-                        width: parent.width
-                        text: root.statLabels(participantRow.participant.stats)
-                        color: Qt.darker(root.foreground, 1.35)
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.caption
-                        elide: Text.ElideRight
-                      }
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: String(participantRow.participant.displayName || "Unknown player").toUpperCase()
+                        + (participantRow.participant.team ? " · " + participantRow.participant.team : "")
+                        + " · " + root.statLabels(participantRow.participant.stats)
+                      color: root.foreground
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.bodySmall
+                      font.bold: true
+                      wrapMode: Text.WordWrap
                     }
 
                     Row {
