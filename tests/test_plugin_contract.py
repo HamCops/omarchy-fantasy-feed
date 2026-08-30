@@ -90,7 +90,7 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn("property var hiddenGameIds", self.source)
         self.assertIn("readonly property int enabledGameCount", self.source)
         self.assertIn("readonly property var visibleFavoriteEvents", self.source)
-        for method_name in ("gameEnabled", "toggleGame", "showAllGames", "hideAllGames"):
+        for method_name in ("gameEnabled", "toggleGame", "showGame", "showAllGames", "hideAllGames"):
             self.assertIn(f"function {method_name}(", self.source)
 
     def test_refresh_failure_marks_retained_snapshot_stale(self):
@@ -235,6 +235,7 @@ class FeedUiContractTests(unittest.TestCase):
         for source in (self.panel, self.standalone):
             self.assertIn("FavoritePulseRail {", source)
             self.assertIn("root.jumpToFavoritePlay(playerId, eventToken)", source)
+            self.assertIn("showGame(sourceEvent.gameId)", source)
         for value in ("off", "all", "touchdowns", "threshold3", "threshold6"):
             self.assertIn(f'value: "{value}"', self.pulse_rail)
         self.assertIn("service.favoritePlayerRows", self.pulse_rail)

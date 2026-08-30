@@ -102,6 +102,16 @@ Item {
     return service ? service.eventToken(event) : ""
   }
 
+  function eventHasPlayerId(event, playerId) {
+    var participants = event && event.participants
+      && event.participants.length !== undefined ? event.participants : []
+    for (var index = 0; index < participants.length; index++) {
+      if (String(participants[index].playerId || "") === String(playerId || ""))
+        return true
+    }
+    return false
+  }
+
   function followLiveTape() {
     followNewest = true
     unseenArrivals = 0
@@ -111,24 +121,40 @@ Item {
   }
 
   function jumpToFavoritePlay(playerId, preferredToken) {
+    var source = service ? service.favoriteEvents : []
+    var sourceEvent = null
+    if (preferredToken) {
+      for (var tokenIndex = source.length - 1; tokenIndex >= 0; tokenIndex--) {
+        if (eventToken(source[tokenIndex]) !== preferredToken) continue
+        sourceEvent = source[tokenIndex]
+        break
+      }
+    }
+    if (!sourceEvent) {
+      for (var sourceIndex = source.length - 1; sourceIndex >= 0; sourceIndex--) {
+        if (!eventHasPlayerId(source[sourceIndex], playerId)) continue
+        sourceEvent = source[sourceIndex]
+        break
+      }
+    }
+    if (sourceEvent && service && !service.gameEnabled(sourceEvent.gameId))
+      service.showGame(sourceEvent.gameId)
     activeTab = "favorites"
     Qt.callLater(function() {
       var target = -1
-      for (var index = 0; index < root.displayedEvents.length; index++) {
-        var event = root.displayedEvents[index]
-        if (preferredToken && root.eventToken(event) === preferredToken) {
+      if (preferredToken) {
+        for (var tokenIndex = 0; tokenIndex < root.displayedEvents.length; tokenIndex++) {
+          if (root.eventToken(root.displayedEvents[tokenIndex]) !== preferredToken) continue
+          target = tokenIndex
+          break
+        }
+      }
+      if (target === -1) {
+        for (var index = 0; index < root.displayedEvents.length; index++) {
+          if (!root.eventHasPlayerId(root.displayedEvents[index], playerId)) continue
           target = index
           break
         }
-        var participants = event && event.participants
-          && event.participants.length !== undefined ? event.participants : []
-        for (var participantIndex = 0; participantIndex < participants.length; participantIndex++) {
-          if (String(participants[participantIndex].playerId || "") === String(playerId || "")) {
-            target = index
-            break
-          }
-        }
-        if (target !== -1) break
       }
       if (target === -1) return
       root.followNewest = target === 0

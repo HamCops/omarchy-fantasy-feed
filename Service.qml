@@ -564,6 +564,16 @@ Item {
     return index !== -1
   }
 
+  function showGame(gameId) {
+    var id = String(gameId || "")
+    var index = hiddenGameIds.indexOf(id)
+    if (id === "" || index === -1) return false
+    var next = hiddenGameIds.slice()
+    next.splice(index, 1)
+    hiddenGameIds = next
+    return true
+  }
+
   function showAllGames() {
     hiddenGameIds = []
   }

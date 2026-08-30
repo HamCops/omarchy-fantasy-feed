@@ -94,6 +94,16 @@ Panel {
     return feedService ? feedService.eventToken(event) : ""
   }
 
+  function eventHasPlayerId(event, playerId) {
+    var participants = event && event.participants
+      && event.participants.length !== undefined ? event.participants : []
+    for (var index = 0; index < participants.length; index++) {
+      if (String(participants[index].playerId || "") === String(playerId || ""))
+        return true
+    }
+    return false
+  }
+
   function followLiveTape() {
     followNewest = true
     unseenArrivals = 0
@@ -105,29 +115,50 @@ Panel {
   }
 
   function jumpToFavoritePlay(playerId, preferredToken) {
+    var source = feedService ? feedService.events : []
+    var sourceEvent = null
+    if (preferredToken) {
+      for (var tokenIndex = source.length - 1; tokenIndex >= 0; tokenIndex--) {
+        if (eventToken(source[tokenIndex]) !== preferredToken) continue
+        sourceEvent = source[tokenIndex]
+        break
+      }
+    }
+    if (!sourceEvent) {
+      for (var sourceIndex = source.length - 1; sourceIndex >= 0; sourceIndex--) {
+        if (!eventHasPlayerId(source[sourceIndex], playerId)) continue
+        sourceEvent = source[sourceIndex]
+        break
+      }
+    }
+    if (sourceEvent && feedService && !feedService.gameEnabled(sourceEvent.gameId))
+      feedService.showGame(sourceEvent.gameId)
+
+    Qt.callLater(function() { root.positionFavoritePlay(playerId, preferredToken) })
+  }
+
+  function positionFavoritePlay(playerId, preferredToken) {
     var target = -1
-    for (var index = 0; index < newestEvents.length; index++) {
-      var event = newestEvents[index]
-      if (preferredToken && eventToken(event) === preferredToken) {
+    if (preferredToken) {
+      for (var tokenIndex = 0; tokenIndex < newestEvents.length; tokenIndex++) {
+        if (eventToken(newestEvents[tokenIndex]) !== preferredToken) continue
+        target = tokenIndex
+        break
+      }
+    }
+    if (target === -1) {
+      for (var index = 0; index < newestEvents.length; index++) {
+        if (!eventHasPlayerId(newestEvents[index], playerId)) continue
         target = index
         break
       }
-      var participants = event && event.participants
-        && event.participants.length !== undefined ? event.participants : []
-      for (var participantIndex = 0; participantIndex < participants.length; participantIndex++) {
-        if (String(participants[participantIndex].playerId || "") === String(playerId || "")) {
-          target = index
-          break
-        }
-      }
-      if (target !== -1) break
     }
     if (target === -1) return
     cursorActive = true
     selectedIndex = target
     followNewest = target === 0
     unseenArrivals = 0
-    Qt.callLater(function() { eventList.positionViewAtIndex(target, ListView.Center) })
+    eventList.positionViewAtIndex(target, ListView.Center)
   }
 
   function handleEventModelChange() {
