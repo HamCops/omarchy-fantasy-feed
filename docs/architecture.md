@@ -247,7 +247,7 @@ count.
 
 ## UI contract
 
-`BarWidget.qml` renders a stable source-state/play-count/favorite-count capsule;
+`BarWidget.qml` renders a stable source-state/favorite-signal capsule;
 the newest raw play remains in its tooltip. Vertical bars show the glyph only.
 Stale state is explicit. Left click toggles `FeedPanel.qml`, and middle click
 requests an optional immediate shared refresh.

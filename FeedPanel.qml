@@ -161,27 +161,6 @@ Panel {
     return scoringMode === "ppr" ? "PPR" : "STD"
   }
 
-  function autoRefreshLabel() {
-    if (!feedService) return "AUTO REFRESH OFFLINE"
-    if (feedService.loading) return "AUTO REFRESHING"
-    if (feedService.nextPollSeconds > 0)
-      return "AUTO REFRESH " + countdownLabel(feedService.nextPollSeconds)
-    return "AUTO REFRESH ON"
-  }
-
-  function countdownLabel(seconds) {
-    var remaining = Math.max(0, Number(seconds) || 0)
-    if (remaining < 90) return Math.ceil(remaining) + "s"
-    if (remaining < 3600) return Math.ceil(remaining / 60) + "m"
-    var hours = Math.floor(remaining / 3600)
-    var minutes = Math.ceil((remaining - hours * 3600) / 60)
-    if (minutes >= 60) {
-      hours += 1
-      minutes = 0
-    }
-    return hours + "h" + (minutes > 0 ? " " + minutes + "m" : "")
-  }
-
   function htmlEscape(value) {
     return String(value)
       .replace(/&/g, "&amp;")
@@ -264,15 +243,9 @@ Panel {
 
   function updateLabel() {
     if (!feedService) return "Service unavailable"
-    if (feedService.loading) return "Refreshing…"
-    if (feedService.lastUpdated) {
-      var compact = String(feedService.lastUpdated).replace("T", " ").replace("Z", " UTC")
-      var incoming = feedService.pendingEventCount > 0
-        ? " · " + feedService.pendingEventCount + " incoming" : ""
-      return newestEvents.length + (newestEvents.length === 1 ? " play · " : " plays · ")
-        + compact + incoming
-    }
-    return newestEvents.length + (newestEvents.length === 1 ? " play" : " plays")
+    var label = newestEvents.length + (newestEvents.length === 1 ? " play" : " plays")
+    return feedService.pendingEventCount > 0
+      ? label + " · " + feedService.pendingEventCount + " incoming" : label
   }
 
   function emptyTitle() {
@@ -654,7 +627,7 @@ Panel {
         Text {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: root.autoRefreshLabel() + " · p PPR/STD · o pop out · j/k select · r refresh · d demo/live · Esc close"
+          text: "p PPR/STD · o pop out · j/k select · r refresh · d demo/live · Esc close"
           color: Qt.darker(root.contentForeground, 1.55)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption

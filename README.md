@@ -14,7 +14,7 @@ accounts, contests, and roster management.
 The horizontal bar presents a stable status such as:
 
 ```text
-LIVE · 24 PLAYS · ★3
+LIVE · ★3
 ```
 
 Opening the compact panel shows the game clock and matchup, ESPN's play text, the
@@ -34,7 +34,7 @@ a custom feed containing only plays by locally favorited players.
 A horizontally scrollable game strip appears across both feed surfaces. Click
 any matchup to toggle it independently; click **ALL** to hide or restore the
 entire slate. Compact two-line chips show `ARI 21–18 ATL` above the live quarter
-and remaining clock (or the scheduled/final provider detail). The same selection filters the compact feed, bar count,
+and remaining clock (or the scheduled/final provider detail). The same selection filters the compact feed,
 standalone feed, favorites feed, and weekly leaderboard.
 
 Newly discovered plays enter a shared live tape one at a time instead of

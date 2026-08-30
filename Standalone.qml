@@ -226,29 +226,6 @@ Item {
     return label + " · " + String(service.week.season || "")
   }
 
-  function autoRefreshLabel() {
-    if (!service) return "AUTO REFRESH OFFLINE"
-    if (service.loading) return "AUTO REFRESHING"
-    var label = service.nextPollSeconds > 0
-      ? "AUTO REFRESH " + countdownLabel(service.nextPollSeconds)
-      : "AUTO REFRESH ON"
-    return service.pendingEventCount > 0
-      ? label + " · " + service.pendingEventCount + " INCOMING" : label
-  }
-
-  function countdownLabel(seconds) {
-    var remaining = Math.max(0, Number(seconds) || 0)
-    if (remaining < 90) return Math.ceil(remaining) + "s"
-    if (remaining < 3600) return Math.ceil(remaining / 60) + "m"
-    var hours = Math.floor(remaining / 3600)
-    var minutes = Math.ceil((remaining - hours * 3600) / 60)
-    if (minutes >= 60) {
-      hours += 1
-      minutes = 0
-    }
-    return hours + "h" + (minutes > 0 ? " " + minutes + "m" : "")
-  }
-
   function isFavorite(playerId) {
     return service ? service.isFavorite(playerId) : false
   }
@@ -334,7 +311,8 @@ Item {
             }
 
             Text {
-              text: root.weekLabel() + " · " + root.autoRefreshLabel()
+              text: root.weekLabel() + (root.service && root.service.pendingEventCount > 0
+                ? " · " + root.service.pendingEventCount + " INCOMING" : "")
               color: Qt.darker(root.foreground, 1.4)
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption

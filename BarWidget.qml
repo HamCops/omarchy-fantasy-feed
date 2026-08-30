@@ -31,8 +31,6 @@ BarWidget {
 
   function barLabel() {
     var label = statusLabel()
-    if (feedService && feedService.visibleEvents.length > 0)
-      label += " · " + feedService.visibleEvents.length + " PLAYS"
     if (feedService && feedService.favoriteSpotlightActive)
       label += " · ★ PLAY"
     else if (feedService && feedService.favoriteCount > 0)

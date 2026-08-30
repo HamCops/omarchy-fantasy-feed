@@ -18,9 +18,10 @@ publication steps that require operator review.
 - [ ] Install from the committed local clone with
   `omarchy plugin add "file://$PWD" --enable --yes`.
 - [ ] Confirm live, scheduled/final, demo, and stale-cache states.
-- [ ] Confirm the adaptive refresh countdown for live, near/far kickoff,
-  final/idle, and failure-backoff states, and that compact panel plus standalone
-  window share one helper process.
+- [ ] Confirm adaptive refresh decisions through IPC status for live, near/far
+  kickoff, final/idle, and failure-backoff states, and that no refresh countdown
+  appears in the UI. Confirm compact panel plus standalone window share one
+  helper process.
 - [ ] Confirm left click, middle-click refresh, pop-out, panel buttons, and every
   documented key.
 - [ ] Confirm the header PPR/STD menu updates inline play scores and leaderboard

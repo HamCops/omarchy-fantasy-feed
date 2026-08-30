@@ -154,6 +154,7 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("if (root.vertical) return glyph", self.bar)
         self.assertIn("function barLabel()", self.bar)
         self.assertIn('label += " · ★" + feedService.favoriteCount', self.bar)
+        self.assertNotIn('feedService.visibleEvents.length + " PLAYS"', self.bar)
         self.assertIn("buttonCode === Qt.MiddleButton", self.bar)
         self.assertIn("root.feedService.refresh()", self.bar)
         self.assertNotRegex(self.bar, r"(?m)^\s*(Process|Timer)\s*\{")
@@ -273,11 +274,12 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("String(pointsColor(annotation.points))", self.panel)
         self.assertIn("String(pointsColor(annotation.points))", self.standalone)
 
-    def test_panel_exposes_automatic_refresh_countdown(self):
-        self.assertIn("function autoRefreshLabel()", self.panel)
-        self.assertIn("function countdownLabel(seconds)", self.panel)
-        self.assertIn("function countdownLabel(seconds)", self.standalone)
-        self.assertIn("AUTO REFRESH", self.panel)
+    def test_feed_surfaces_keep_refresh_timing_out_of_the_ui(self):
+        for source in (self.panel, self.standalone):
+            self.assertNotIn("function autoRefreshLabel()", source)
+            self.assertNotIn("function countdownLabel(seconds)", source)
+            self.assertNotIn("AUTO REFRESH", source)
+            self.assertIn("pendingEventCount", source)
 
     def test_standalone_window_has_feed_leaderboard_and_favorites(self):
         self.assertIn("FloatingWindow {", self.standalone)
