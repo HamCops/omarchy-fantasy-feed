@@ -3,8 +3,8 @@
 Fantasy Feed is an Omarchy plugin for following NFL plays through a
 fantasy-football lens. A stable bar capsule shows feed health without resizing
 on every snap. The compact panel expands each play into raw text, stat deltas,
-and side-by-side full-PPR and standard scores; a standalone window adds weekly
-leaderboards and a favorites-only feed.
+and the points from a selectable PPR or standard profile; a standalone window
+adds weekly leaderboards and a favorites-only feed.
 
 It uses the active Omarchy theme and deliberately avoids sportsbook branding,
 accounts, contests, and roster management.
@@ -19,9 +19,10 @@ LIVE · 24 PLAYS · ★3
 
 Opening the compact panel shows the game clock and matchup, ESPN's play text, the
 current/corrected/voided lifecycle, and one compact row per player combining the
-team, stat deltas, and PPR/standard points created by that play. Play text wraps
-in full instead of being truncated; unusually long plays grow only as much as
-needed. A bundled demo covers a reception, negative rush, interception,
+player's name, selected points in parentheses, team, and stat deltas. A PPR/STD
+menu in the header changes every inline score and the weekly leaderboard sort
+together. Play text wraps in full instead of being truncated; unusually long
+plays grow only as much as needed. A bundled demo covers a reception, negative rush, interception,
 catch-and-fumble, passing two-point conversion, and a reviewed touchdown that
 becomes voided. Positive points are green, negative points are red, and zero is
 neutral.
@@ -78,9 +79,10 @@ omarchy plugin remove tdh.fantasy-feed --yes
 - Click any matchup in the game strip to add or remove that game. Any number of
   games can be selected at once; **ALL** toggles the complete slate.
 - Use the arrow keys or `j`/`k` to move through plays, `r` to refresh, `d` to
-  switch demo/live, and `Esc` to close the compact panel.
+  switch demo/live, `p` to toggle the selected PPR/STD profile, and `Esc` to
+  close the compact panel. The header menu provides the same scoring control.
 - In the standalone window, use `1`/`2`/`3` for feed/leaderboard/favorites and
-  `p` to toggle PPR/standard sorting. Select `ALL`, `QB`, `RB`, `WR`, or `TE`,
+  `p` to toggle PPR/standard display and sorting. Select `ALL`, `QB`, `RB`, `WR`, or `TE`,
   type in the player/team search (`/` focuses it), and use `☆`/`★` to update
   favorites.
 

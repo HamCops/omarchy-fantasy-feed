@@ -23,7 +23,8 @@ publication steps that require operator review.
   window share one helper process.
 - [ ] Confirm left click, middle-click refresh, pop-out, panel buttons, and every
   documented key.
-- [ ] Confirm PPR/standard sorting, all four position filters, favorite
+- [ ] Confirm the header PPR/STD menu updates inline play scores and leaderboard
+  sorting; confirm all four position filters, favorite
   persistence after shell restart, favorites-only feed filtering, and arbitrary
   multi-game selection shared by every view. Confirm player/team search narrows
   the leaderboard without changing favorite state.
@@ -58,4 +59,4 @@ publication steps that require operator review.
   submission copy.
 - [ ] Replace the generic install URL only after the public repository exists.
 - [ ] Repeat the automated and runtime gates from a clean checkout.
-- [ ] Tag `v0.3.2` only after every release gate passes.
+- [ ] Tag `v0.3.3` only after every release gate passes.

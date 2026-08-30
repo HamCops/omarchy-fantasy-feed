@@ -156,10 +156,9 @@ class FeedUiContractTests(unittest.TestCase):
             "lifecycle",
             "participants",
             "stats",
-            "points.ppr",
-            "points.standard",
         ):
             self.assertIn(field, self.panel)
+        self.assertIn("points[root.scoringMode]", self.panel)
         self.assertIn("serviceEvents.length - 1", self.panel)
         self.assertNotIn("boxscore", self.panel.lower())
         self.assertNotIn("drives", self.panel.lower())
@@ -198,7 +197,7 @@ class FeedUiContractTests(unittest.TestCase):
     def test_compact_participant_rows_have_concrete_responsive_heights(self):
         self.assertRegex(
             self.panel,
-            r"(?s)id: participantRow.*?height: Math\.max\(participantSummary\.implicitHeight, pointLine\.implicitHeight\).*?id: participantSummary.*?wrapMode: Text\.WordWrap",
+            r"(?s)delegate: Flow \{.*?id: participantRow.*?height: implicitHeight.*?root\.signedPoints\(participantRow\.selectedPoints\).*?wrapMode: Text\.WordWrap",
         )
 
     def test_feed_cards_are_dense_without_truncating_play_context(self):
@@ -210,15 +209,26 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertNotIn("maximumLineCount: 3", self.panel)
         self.assertIn("width: parent ? parent.width : 0", self.panel)
         self.assertIn("width: parent ? parent.width : 0", self.standalone)
-        self.assertIn('+ " · " + root.statLabels(participantRow.participant.stats)', self.panel)
-        self.assertIn('+ " · " + root.statLabels(participantRow.participant.stats)', self.standalone)
+        self.assertIn("+ root.statLabels(participantRow.participant.stats)", self.panel)
+        self.assertIn("+ root.statLabels(participantRow.participant.stats)", self.standalone)
+
+    def test_scoring_dropdown_controls_inline_and_leaderboard_points(self):
+        for source in (self.panel, self.standalone):
+            self.assertIn("Dropdown {", source)
+            self.assertIn('{value: "ppr", label: "PPR"}', source)
+            self.assertIn('{value: "standard", label: "STD"}', source)
+            self.assertIn("value: root.scoringMode", source)
+            self.assertIn('"(" + root.signedPoints(participantRow.selectedPoints) + ")"', source)
+        self.assertIn("blocked: scoringDropdown.popupOpen", self.panel)
+        self.assertIn("left.points[mode]", self.standalone)
+        self.assertIn("right.points[mode]", self.standalone)
 
     def test_points_use_positive_negative_and_neutral_colors(self):
         self.assertIn('readonly property color positivePoints: "#6fcf79"', self.panel)
         self.assertIn('readonly property color negativePoints: "#ff6b6b"', self.panel)
         self.assertIn("function pointsColor(value)", self.panel)
-        self.assertIn("color: root.pointsColor(participantRow.points.ppr)", self.panel)
-        self.assertIn("color: root.pointsColor(participantRow.points.standard)", self.panel)
+        self.assertIn("color: root.pointsColor(participantRow.selectedPoints)", self.panel)
+        self.assertIn("color: root.pointsColor(participantRow.selectedPoints)", self.standalone)
 
     def test_panel_exposes_automatic_refresh_countdown(self):
         self.assertIn("function autoRefreshLabel()", self.panel)

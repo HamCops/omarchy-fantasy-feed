@@ -41,6 +41,7 @@ Panel {
   // second monitor never moves the first monitor's cursor.
   property int selectedIndex: 0
   property bool cursorActive: true
+  property string scoringMode: "ppr"
 
   function open() {
     root.controller.show()
@@ -113,6 +114,10 @@ Panel {
     var number = Number(value)
     if (!isFinite(number) || Math.abs(number) < 0.005) return Qt.darker(contentForeground, 1.35)
     return number > 0 ? positivePoints : negativePoints
+  }
+
+  function scoringLabel() {
+    return scoringMode === "ppr" ? "PPR" : "STD"
   }
 
   function autoRefreshLabel() {
@@ -225,6 +230,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      blocked: scoringDropdown.popupOpen
       onMoveRequested: function(dx, dy) {
         if (dy !== 0) root.moveSelection(dy)
       }
@@ -234,6 +240,8 @@ Panel {
         if (text === "r" || text === "R") root.refreshFeed()
         else if (text === "d" || text === "D") root.toggleMode()
         else if (text === "o" || text === "O") root.popOut()
+        else if (text === "p" || text === "P")
+          root.scoringMode = root.scoringMode === "ppr" ? "standard" : "ppr"
       }
 
       Column {
@@ -303,6 +311,20 @@ Panel {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
+
+            Dropdown {
+              id: scoringDropdown
+              width: Style.space(86)
+              showLabel: false
+              options: [
+                {value: "ppr", label: "PPR"},
+                {value: "standard", label: "STD"}
+              ]
+              value: root.scoringMode
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              onChanged: function(value) { root.scoringMode = value }
+            }
 
             Button {
               text: "↗"
@@ -512,66 +534,42 @@ Panel {
                   && eventCard.fantasyEvent.participants.length !== undefined
                     ? eventCard.fantasyEvent.participants : []
 
-                delegate: Item {
+                delegate: Flow {
                   id: participantRow
                   required property var modelData
                   readonly property var participant: modelData
                   readonly property var points: participant && participant.points ? participant.points : ({})
+                  readonly property real selectedPoints: Number(points[root.scoringMode] || 0)
 
                   width: parent ? parent.width : 0
-                  height: Math.max(participantSummary.implicitHeight, pointLine.implicitHeight)
+                  height: implicitHeight
+                  spacing: Style.space(4)
 
                   Text {
-                    id: participantSummary
-                    anchors.left: parent.left
-                    anchors.right: pointLine.left
-                    anchors.rightMargin: Style.space(8)
-                    anchors.verticalCenter: parent.verticalCenter
                     text: String(participantRow.participant.displayName || "Unknown player").toUpperCase()
-                      + (participantRow.participant.team ? " · " + String(participantRow.participant.team) : "")
-                      + " · " + root.statLabels(participantRow.participant.stats)
                     color: root.contentForeground
                     font.family: root.contentFontFamily
                     font.pixelSize: Style.font.bodySmall
                     font.bold: true
-                    wrapMode: Text.WordWrap
                   }
 
-                  Row {
-                    id: pointLine
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Style.space(4)
+                  Text {
+                    text: "(" + root.signedPoints(participantRow.selectedPoints) + ")"
+                    color: root.pointsColor(participantRow.selectedPoints)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                  }
 
-                    Text {
-                      text: "PPR"
-                      color: Qt.darker(root.contentForeground, 1.35)
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.bodySmall
-                    }
-
-                    Text {
-                      text: root.signedPoints(participantRow.points.ppr)
-                      color: root.pointsColor(participantRow.points.ppr)
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
-                    }
-
-                    Text {
-                      text: "· STD"
-                      color: Qt.darker(root.contentForeground, 1.35)
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.bodySmall
-                    }
-
-                    Text {
-                      text: root.signedPoints(participantRow.points.standard)
-                      color: root.pointsColor(participantRow.points.standard)
-                      font.family: root.contentFontFamily
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
-                    }
+                  Text {
+                    width: Math.min(implicitWidth, participantRow.width)
+                    text: (participantRow.participant.team
+                        ? "· " + String(participantRow.participant.team) + " · " : "· ")
+                      + root.statLabels(participantRow.participant.stats)
+                    color: Qt.darker(root.contentForeground, 1.2)
+                    font.family: root.contentFontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    wrapMode: Text.WordWrap
                   }
                 }
               }
@@ -582,7 +580,7 @@ Panel {
         Text {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: root.autoRefreshLabel() + " · o pop out · j/k select · r refresh · d demo/live · Esc close"
+          text: root.autoRefreshLabel() + " · p PPR/STD · o pop out · j/k select · r refresh · d demo/live · Esc close"
           color: Qt.darker(root.contentForeground, 1.55)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption

@@ -245,6 +245,20 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Style.space(6)
 
+            Dropdown {
+              id: scoringDropdown
+              width: Style.space(86)
+              showLabel: false
+              options: [
+                {value: "ppr", label: "PPR"},
+                {value: "standard", label: "STD"}
+              ]
+              value: root.scoringMode
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onChanged: function(value) { root.scoringMode = value }
+            }
+
             Button {
               iconText: "󰑐"
               tooltipText: "Refresh now (r); automatic refresh stays enabled"
@@ -296,16 +310,6 @@ Item {
           visible: root.activeTab === "leaders"
           width: parent.width
           spacing: Style.space(6)
-
-          Button {
-            text: root.scoringLabel() + " ▼"
-            tooltipText: "Sort by " + (root.scoringMode === "ppr" ? "standard" : "PPR") + " points (p)"
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            fontSize: Style.font.caption
-            bordered: true
-            onClicked: root.scoringMode = root.scoringMode === "ppr" ? "standard" : "ppr"
-          }
 
           Repeater {
             model: ["ALL", "QB", "RB", "WR", "TE"]
@@ -456,54 +460,56 @@ Item {
                     required property var modelData
                     readonly property var participant: modelData
                     readonly property var participantPoints: participant && participant.points ? participant.points : ({})
+                    readonly property real selectedPoints: Number(participantPoints[root.scoringMode] || 0)
                     width: parent ? parent.width : 0
-                    height: Math.max(participantSummary.implicitHeight, participantActions.implicitHeight)
+                    height: Math.max(participantFlow.implicitHeight, favoriteButton.implicitHeight)
 
-                    Text {
-                      id: participantSummary
-                      anchors.left: parent.left
-                      anchors.right: participantActions.left
-                      anchors.rightMargin: Style.space(8)
-                      anchors.verticalCenter: parent.verticalCenter
-                      text: String(participantRow.participant.displayName || "Unknown player").toUpperCase()
-                        + (participantRow.participant.team ? " · " + participantRow.participant.team : "")
-                        + " · " + root.statLabels(participantRow.participant.stats)
-                      color: root.foreground
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.bodySmall
-                      font.bold: true
-                      wrapMode: Text.WordWrap
-                    }
-
-                    Row {
-                      id: participantActions
+                    Button {
+                      id: favoriteButton
                       anchors.right: parent.right
                       anchors.verticalCenter: parent.verticalCenter
-                      spacing: Style.space(7)
+                      text: root.isFavorite(participantRow.participant.playerId) ? "★" : "☆"
+                      tooltipText: root.isFavorite(participantRow.participant.playerId)
+                        ? "Remove favorite" : "Favorite player"
+                      foreground: root.isFavorite(participantRow.participant.playerId) ? root.positivePoints : root.foreground
+                      fontFamily: root.fontFamily
+                      fontSize: Style.font.bodySmall
+                      onClicked: root.toggleFavorite(participantRow.participant)
+                    }
+
+                    Flow {
+                      id: participantFlow
+                      anchors.left: parent.left
+                      anchors.right: favoriteButton.left
+                      anchors.rightMargin: Style.space(8)
+                      height: implicitHeight
+                      spacing: Style.space(4)
+
                       Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "PPR " + root.signedPoints(participantRow.participantPoints.ppr)
-                        color: root.pointsColor(participantRow.participantPoints.ppr)
+                        text: String(participantRow.participant.displayName || "Unknown player").toUpperCase()
+                        color: root.foreground
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.bodySmall
                         font.bold: true
                       }
+
                       Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "STD " + root.signedPoints(participantRow.participantPoints.standard)
-                        color: root.pointsColor(participantRow.participantPoints.standard)
+                        text: "(" + root.signedPoints(participantRow.selectedPoints) + ")"
+                        color: root.pointsColor(participantRow.selectedPoints)
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.bodySmall
                         font.bold: true
                       }
-                      Button {
-                        text: root.isFavorite(participantRow.participant.playerId) ? "★" : "☆"
-                        tooltipText: root.isFavorite(participantRow.participant.playerId)
-                          ? "Remove favorite" : "Favorite player"
-                        foreground: root.isFavorite(participantRow.participant.playerId) ? root.positivePoints : root.foreground
-                        fontFamily: root.fontFamily
-                        fontSize: Style.font.bodySmall
-                        onClicked: root.toggleFavorite(participantRow.participant)
+
+                      Text {
+                        width: Math.min(implicitWidth, participantFlow.width)
+                        text: (participantRow.participant.team
+                            ? "· " + String(participantRow.participant.team) + " · " : "· ")
+                          + root.statLabels(participantRow.participant.stats)
+                        color: Qt.darker(root.foreground, 1.2)
+                        font.family: root.fontFamily
+                        font.pixelSize: Style.font.bodySmall
+                        wrapMode: Text.WordWrap
                       }
                     }
                   }
