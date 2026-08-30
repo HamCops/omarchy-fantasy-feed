@@ -722,6 +722,7 @@ Item {
         enabledGameCount: root.enabledGameCount,
         leaderboardCount: root.leaderboard.length,
         favoriteCount: root.favoriteCount,
+        favoriteSpotlightActive: root.favoriteSpotlightActive,
         lastUpdated: root.lastUpdated,
         lastError: root.lastError,
         nextPollSeconds: root.nextPollSeconds,

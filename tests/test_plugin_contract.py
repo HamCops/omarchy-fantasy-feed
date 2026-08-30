@@ -130,6 +130,7 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn("readonly property int favoriteHoldMilliseconds: 2600", self.source)
         self.assertIn("id: arrivalTimer", self.source)
         self.assertIn("stagePresentation(value)", self.source)
+        self.assertIn("favoriteSpotlightActive: root.favoriteSpotlightActive", self.source)
 
 
 class FeedUiContractTests(unittest.TestCase):
