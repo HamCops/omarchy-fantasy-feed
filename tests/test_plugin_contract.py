@@ -248,7 +248,7 @@ class FeedUiContractTests(unittest.TestCase):
             self.assertIn("showGame(sourceEvent.gameId)", source)
         for value in ("off", "all", "touchdowns", "threshold3", "threshold6"):
             self.assertIn(f'value: "{value}"', self.pulse_rail)
-        self.assertIn("★ 3+ PT PLAY", self.pulse_rail)
+        self.assertIn("★ 3+ / PLAY", self.pulse_rail)
         self.assertIn("PPR/STD points from one play", self.pulse_rail)
         self.assertIn("service.favoritePlayerRows", self.pulse_rail)
         self.assertIn("player.spotlight", self.pulse_rail)

@@ -42,7 +42,7 @@ their latest scored play. The scoring selection is shared by every surface and
 persists across shell restarts.
 
 The rail's alert policy watches only newly arriving plays involving **My
-Players**. `3+ PT PLAY` and `6+ PT PLAY` compare one favorite participant's
+Players**. `3+ / PLAY` and `6+ / PLAY` compare one favorite participant's
 points on that play in the currently selected PPR/STD mode—not the player's
 weekly total. Hidden games do not alert, and Omarchy's do-not-disturb setting is
 honored.
