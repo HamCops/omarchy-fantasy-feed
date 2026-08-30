@@ -243,7 +243,8 @@ final game and a future scheduled game share one slate. A successful refresh
 resets failure backoff; manual refresh remains available during every wait.
 
 Component destruction stops timers, the watchdog, and any active helper. The
-IPC target `tdh.fantasy-feed` exposes `status`, `refresh`, `demo`, `live`, and
+IPC target `io.github.studioxvii.fantasy-feed` exposes `status`, `refresh`,
+`demo`, `live`, and
 the developer-only `simulate` switch. Status includes mode, loading/stale state,
 source state, event count, last
 update/error, countdown and reason for the next poll, and consecutive failure

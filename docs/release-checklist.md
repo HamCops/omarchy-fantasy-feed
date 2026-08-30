@@ -74,4 +74,4 @@ publication steps that require operator review.
   submission copy.
 - [ ] Replace the generic install URL only after the public repository exists.
 - [ ] Repeat the automated and runtime gates from a clean checkout.
-- [ ] Tag `v0.6.0` only after every release gate passes.
+- [ ] Tag `v1.0.0` only after every release gate passes.

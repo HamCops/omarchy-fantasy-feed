@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Compile Python sources
+        run: python3 -m compileall -q scripts tests
+      - name: Run offline tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Exercise deterministic demo
+        run: python3 scripts/feed.py --fixture fixtures/replays/demo.json > /tmp/fantasy-feed-demo.json
+      - name: Check whitespace
+        run: git diff --check

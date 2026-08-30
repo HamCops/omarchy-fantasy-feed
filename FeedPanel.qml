@@ -9,15 +9,15 @@ import qs.Ui
 // intentionally contains no Process, Timer, network, cache, or parser logic.
 Panel {
   id: root
-  moduleName: "tdh.fantasy-feed"
-  ipcTarget: "tdh.fantasy-feed"
+  moduleName: "io.github.studioxvii.fantasy-feed"
+  ipcTarget: "io.github.studioxvii.fantasy-feed"
   manageIpc: false
 
   property var anchorItem: null
   property var hostWidget: null
   readonly property var barIdentity: hostWidget || root
   readonly property var feedService: bar && bar.shell
-    ? bar.shell.serviceFor("tdh.fantasy-feed")
+    ? bar.shell.serviceFor("io.github.studioxvii.fantasy-feed")
     : null
 
   readonly property var serviceEvents: feedService && Array.isArray(feedService.visibleEvents)
@@ -197,7 +197,7 @@ Panel {
     var hostShell = bar && bar.shell ? bar.shell : null
     root.close()
     if (hostShell && typeof hostShell.summon === "function")
-      hostShell.summon("tdh.fantasy-feed", JSON.stringify({tab: "feed"}))
+      hostShell.summon("io.github.studioxvii.fantasy-feed", JSON.stringify({tab: "feed"}))
   }
 
   function signedPoints(value) {

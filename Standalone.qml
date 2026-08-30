@@ -94,7 +94,8 @@ Item {
   }
 
   function requestClose() {
-    if (shell && typeof shell.hide === "function") shell.hide("tdh.fantasy-feed")
+    if (shell && typeof shell.hide === "function")
+      shell.hide("io.github.studioxvii.fantasy-feed")
     else window.visible = false
   }
 
@@ -306,7 +307,7 @@ Item {
 
     onVisibleChanged: {
       if (!visible && !root.closingFromHost && root.shell && typeof root.shell.hide === "function")
-        root.shell.hide("tdh.fantasy-feed")
+        root.shell.hide("io.github.studioxvii.fantasy-feed")
     }
 
     FocusScope {

@@ -13,7 +13,7 @@ class PluginManifestTests(unittest.TestCase):
     def test_manifest_declares_existing_service_and_widget_entry_points(self):
         manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(1, manifest["schemaVersion"])
-        self.assertEqual("tdh.fantasy-feed", manifest["id"])
+        self.assertEqual("io.github.studioxvii.fantasy-feed", manifest["id"])
         self.assertEqual({"service", "bar-widget", "panel"}, set(manifest["kinds"]))
         self.assertTrue(manifest["keepLoaded"])
         self.assertFalse(manifest["barWidget"]["allowMultiple"])
@@ -52,7 +52,7 @@ class ServiceBoundaryTests(unittest.TestCase):
             "demoMode",
         ):
             self.assertRegex(self.source, rf"property [^\n]*\b{property_name}\b")
-        self.assertIn('target: "tdh.fantasy-feed"', self.source)
+        self.assertIn('target: "io.github.studioxvii.fantasy-feed"', self.source)
         for method_name in ("status", "refresh", "demo", "live", "simulate"):
             self.assertIn(f"function {method_name}(): string", self.source)
         self.assertIn("readonly property int livePollSeconds: 15", self.source)
@@ -172,7 +172,9 @@ class FeedUiContractTests(unittest.TestCase):
             self.assertRegex(self.bar, rf"function {method_name}\(\)")
 
     def test_bar_uses_only_the_shared_service_and_adapts_to_orientation(self):
-        self.assertIn('bar.shell.serviceFor("tdh.fantasy-feed")', self.bar)
+        self.assertIn(
+            'bar.shell.serviceFor("io.github.studioxvii.fantasy-feed")', self.bar
+        )
         self.assertNotIn("firstPartyServiceFor", self.bar)
         self.assertIn("if (root.vertical) return glyph", self.bar)
         self.assertIn("function barLabel()", self.bar)
@@ -194,7 +196,9 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("KeyboardPanel {", self.panel)
         self.assertIn("PanelKeyCatcher {", self.panel)
         self.assertIn("ListView {", self.panel)
-        self.assertIn('bar.shell.serviceFor("tdh.fantasy-feed")', self.panel)
+        self.assertIn(
+            'bar.shell.serviceFor("io.github.studioxvii.fantasy-feed")', self.panel
+        )
         self.assertNotRegex(self.panel, r"(?m)^\s*(Process|Timer)\s*\{")
         self.assertNotIn("Quickshell.Io", self.panel)
 

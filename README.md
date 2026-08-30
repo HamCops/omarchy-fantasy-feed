@@ -83,17 +83,17 @@ omarchy plugin add "file://$PWD" --enable --yes
 Once a public repository exists, the equivalent published form is:
 
 ```sh
-omarchy plugin add "https://github.com/<owner>/<repository>.git" --enable --yes
+omarchy plugin add "https://github.com/studioxvii/omarchy-fantasy-feed.git" --enable --yes
 ```
 
-No public repository URL is claimed by this project yet. The manifest installs
-one non-duplicated widget in the center section by default.
+The manifest installs one non-duplicated widget in the center section by
+default.
 
 To disable or remove an installed copy:
 
 ```sh
-omarchy plugin disable tdh.fantasy-feed
-omarchy plugin remove tdh.fantasy-feed --yes
+omarchy plugin disable io.github.studioxvii.fantasy-feed
+omarchy plugin remove io.github.studioxvii.fantasy-feed --yes
 ```
 
 ## Use
@@ -122,12 +122,12 @@ omarchy plugin remove tdh.fantasy-feed --yes
 The same service controls are available through Omarchy shell IPC:
 
 ```sh
-omarchy-shell tdh.fantasy-feed status
-omarchy-shell tdh.fantasy-feed refresh
-omarchy-shell tdh.fantasy-feed demo
-omarchy-shell tdh.fantasy-feed live
-omarchy-shell tdh.fantasy-feed simulate
-omarchy-shell shell toggle tdh.fantasy-feed
+omarchy-shell io.github.studioxvii.fantasy-feed status
+omarchy-shell io.github.studioxvii.fantasy-feed refresh
+omarchy-shell io.github.studioxvii.fantasy-feed demo
+omarchy-shell io.github.studioxvii.fantasy-feed live
+omarchy-shell io.github.studioxvii.fantasy-feed simulate
+omarchy-shell shell toggle io.github.studioxvii.fantasy-feed
 ```
 
 The data helper is also useful on its own:
@@ -164,8 +164,8 @@ python3 scripts/espn_simulator.py
 Then switch the installed plugin to its one-second load-test poll in another:
 
 ```sh
-omarchy-shell tdh.fantasy-feed simulate
-omarchy-shell shell toggle tdh.fantasy-feed
+omarchy-shell io.github.studioxvii.fantasy-feed simulate
+omarchy-shell shell toggle io.github.studioxvii.fantasy-feed
 ```
 
 The bar and headers show `SIM` while this mode is active. Calling `simulate`
@@ -177,7 +177,7 @@ curl -s http://127.0.0.1:8765/__simulator__/status | jq
 ```
 
 Use `Ctrl+C` in the server terminal and return the plugin to real data with
-`omarchy-shell tdh.fantasy-feed live`. The simulator accepts `--games`,
+`omarchy-shell io.github.studioxvii.fantasy-feed live`. The simulator accepts `--games`,
 `--max-plays`, `--latency-ms`, and `--all-games-per-tick` for alternate load
 profiles. The helper's
 `--provider-base-url` option rejects anything other than an HTTP loopback origin
@@ -203,7 +203,7 @@ the reception bonus.
 | Receiving two-point conversion | 2 | 2 |
 | Fumble lost | -2 | -2 |
 
-Negative yardage produces negative points. Version 0.6 intentionally excludes
+Negative yardage produces negative points. Version 1.0 intentionally excludes
 kickers, team defense, points-allowed bands, half PPR, custom scoring, fantasy
 league roster sync, projections, non-favorite alerts, contests, betting data,
 and other sports.

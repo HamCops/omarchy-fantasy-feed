@@ -397,7 +397,8 @@ Item {
       "-t", "6500",
       headline,
       String(event.rawText || "Favorite-player fantasy play"),
-      "--exec", "omarchy-shell", "shell", "summon", "tdh.fantasy-feed", payload
+      "--exec", "omarchy-shell", "shell", "summon",
+      "io.github.studioxvii.fantasy-feed", payload
     ])
   }
 
@@ -959,7 +960,7 @@ Item {
   }
 
   IpcHandler {
-    target: "tdh.fantasy-feed"
+    target: "io.github.studioxvii.fantasy-feed"
 
     function status(): string {
       return JSON.stringify({

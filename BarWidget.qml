@@ -7,10 +7,10 @@ import qs.Ui
 // hosts the monitor-local panel.
 BarWidget {
   id: root
-  moduleName: "tdh.fantasy-feed"
+  moduleName: "io.github.studioxvii.fantasy-feed"
 
   readonly property var feedService: bar && bar.shell
-    ? bar.shell.serviceFor("tdh.fantasy-feed")
+    ? bar.shell.serviceFor("io.github.studioxvii.fantasy-feed")
     : null
   readonly property var latestEvent: feedService ? feedService.latestVisibleEvent : null
   readonly property bool feedLoading: feedService ? feedService.loading === true : false
