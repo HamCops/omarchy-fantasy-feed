@@ -456,7 +456,7 @@ Item {
                     required property var modelData
                     readonly property var participant: modelData
                     readonly property var participantPoints: participant && participant.points ? participant.points : ({})
-                    width: parent.width
+                    width: parent ? parent.width : 0
                     height: Math.max(participantSummary.implicitHeight, participantActions.implicitHeight)
 
                     Text {

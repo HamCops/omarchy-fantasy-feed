@@ -518,7 +518,7 @@ Panel {
                   readonly property var participant: modelData
                   readonly property var points: participant && participant.points ? participant.points : ({})
 
-                  width: parent.width
+                  width: parent ? parent.width : 0
                   height: Math.max(participantSummary.implicitHeight, pointLine.implicitHeight)
 
                   Text {

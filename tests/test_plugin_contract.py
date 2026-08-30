@@ -208,6 +208,8 @@ class FeedUiContractTests(unittest.TestCase):
             self.assertIn("spacing: Style.space(3)", source)
             self.assertNotIn("FANTASY IMPACT · POINTS FROM THIS PLAY", source)
         self.assertNotIn("maximumLineCount: 3", self.panel)
+        self.assertIn("width: parent ? parent.width : 0", self.panel)
+        self.assertIn("width: parent ? parent.width : 0", self.standalone)
         self.assertIn('+ " · " + root.statLabels(participantRow.participant.stats)', self.panel)
         self.assertIn('+ " · " + root.statLabels(participantRow.participant.stats)', self.standalone)
 
