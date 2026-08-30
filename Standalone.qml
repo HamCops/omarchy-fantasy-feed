@@ -171,6 +171,7 @@ Item {
     if (!service) return "OFFLINE"
     if (service.stale) return "STALE"
     if (service.demoMode) return "DEMO"
+    if (service.simulatorMode) return "SIM"
     var state = service.snapshot ? String(service.snapshot.sourceState || "") : ""
     return state ? state.toUpperCase() : "CONNECTING"
   }

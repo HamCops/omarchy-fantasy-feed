@@ -19,9 +19,23 @@ Item {
     var away = String(game && game.away ? game.away : "AWAY")
     var home = String(game && game.home ? game.home : "HOME")
     var hasScores = game && game.awayScore !== undefined && game.homeScore !== undefined
-    return hasScores
+    var matchup = hasScores
       ? away + " " + String(game.awayScore) + " @ " + home + " " + String(game.homeScore)
       : away + " @ " + home
+    var status = gameStatusLabel(game)
+    return status ? matchup + " · " + status : matchup
+  }
+
+  function gameStatusLabel(game) {
+    var state = String(game && game.state ? game.state : "").toLowerCase()
+    var period = Number(game && game.period)
+    var clock = String(game && game.clock ? game.clock : "")
+    if (state === "live" && period > 0 && clock)
+      return "Q" + period + " " + clock
+    var detail = String(game && game.detail ? game.detail : "")
+    if (detail) return detail.toUpperCase() === "FINAL" ? "FINAL" : detail
+    if (state === "final") return "FINAL"
+    return ""
   }
 
   function gameTooltip(game) {

@@ -54,7 +54,7 @@ class ServiceBoundaryTests(unittest.TestCase):
         ):
             self.assertRegex(self.source, rf"property [^\n]*\b{property_name}\b")
         self.assertIn('target: "tdh.fantasy-feed"', self.source)
-        for method_name in ("status", "refresh", "demo", "live"):
+        for method_name in ("status", "refresh", "demo", "live", "simulate"):
             self.assertIn(f"function {method_name}(): string", self.source)
         self.assertIn("readonly property int livePollSeconds: 15", self.source)
         self.assertIn("readonly property int scheduledPollSeconds: 60", self.source)
@@ -63,6 +63,10 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn("readonly property int distantKickoffPollSeconds: 900", self.source)
         self.assertIn("readonly property var failureBackoffSchedule: [60, 120, 300, 900]", self.source)
         self.assertNotIn("idlePollSeconds", self.source)
+        self.assertIn("readonly property int simulatorPollSeconds: 1", self.source)
+        self.assertIn('readonly property string simulatorBaseUrl: "http://127.0.0.1:8765"', self.source)
+        self.assertIn('"--provider-base-url", _runProviderBaseUrl', self.source)
+        self.assertIn('"--cache", simulatorCachePath', self.source)
 
     def test_service_uses_game_aware_deadlines_and_failure_backoff(self):
         for method_name in (
@@ -171,6 +175,8 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("service.toggleGame(modelData.id)", self.game_selector)
         self.assertIn("service.hideAllGames()", self.game_selector)
         self.assertIn("service.showAllGames()", self.game_selector)
+        self.assertIn("function gameStatusLabel(game)", self.game_selector)
+        self.assertIn('return "Q" + period + " " + clock', self.game_selector)
         self.assertNotRegex(self.game_selector, r"(?m)^\s*(Process|Timer)\s*\{")
 
     def test_panel_exposes_required_states_controls_and_keys(self):

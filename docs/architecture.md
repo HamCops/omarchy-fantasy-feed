@@ -3,7 +3,8 @@
 ## Deployed shape
 
 ```text
-ESPN scoreboard, summaries, per-play statistics, and rosters
+ESPN (or loopback ESPN-shaped simulator) scoreboard, summaries,
+              per-play statistics, and rosters
                          |
                          v
                  scripts/espn.py
@@ -88,6 +89,16 @@ another play-stat request.
 
 Any response needed for a trustworthy observation failing validation fails the
 refresh. Partial provider data never becomes a fresh snapshot.
+
+For load testing, `scripts/espn_simulator.py` exposes the same approved URL
+paths from a loopback-only threaded HTTP server. The adapter first validates the
+canonical ESPN target, then substitutes only the origin for an explicitly
+selected `http://localhost:port` transport. The default scenario advances ten
+live games at once and adds ten interleaved fantasy plays per observation. This
+keeps simulator traffic on the real extraction and reduction path while making
+external network access unnecessary. Simulator mode polls every second and uses
+a dedicated cache that is reset on entry; production live/cache behavior is
+unchanged.
 
 ## Normalized boundary and attribution
 
@@ -200,6 +211,7 @@ Polling is a one-shot decision based on individual normalized games:
 
 | Slate condition | Next refresh |
 | --- | ---: |
+| Explicit ten-game simulator | 1 second |
 | Any game live | 15 seconds |
 | Scheduled kickoff within 10 minutes | 30 seconds |
 | Scheduled kickoff within 1 hour | 2 minutes |
@@ -213,8 +225,9 @@ final game and a future scheduled game share one slate. A successful refresh
 resets failure backoff; manual refresh remains available during every wait.
 
 Component destruction stops timers, the watchdog, and any active helper. The
-IPC target `tdh.fantasy-feed` exposes `status`, `refresh`, `demo`, and `live`;
-status includes mode, loading/stale state, source state, event count, last
+IPC target `tdh.fantasy-feed` exposes `status`, `refresh`, `demo`, `live`, and
+the developer-only `simulate` switch. Status includes mode, loading/stale state,
+source state, event count, last
 update/error, countdown and reason for the next poll, and consecutive failure
 count.
 
@@ -242,6 +255,8 @@ standalone surfaces. The singleton service owns a set of hidden game IDs and
 derives selected event and favorite-event views, so toggling any combination of
 matchups immediately stays in sync across windows and the bar. Weekly player
 rows retain their game IDs so the same selection also filters the leaderboard.
+Each matchup chip renders the normalized score and provider status; live games
+prefer the explicit period plus remaining clock.
 
 `Standalone.qml` owns an ordinary `FloatingWindow`, so Hyprland can move, tile,
 or place it like another app instead of covering the current workspace as a
@@ -264,13 +279,14 @@ omarchy plugin validate "$PWD"
 git diff --check
 ```
 
-On 2026-08-29 this checkout passed all 77 tests and
+On 2026-08-29 this checkout passed all 80 tests and
 `omarchy plugin validate "$PWD"`.
 
 The current suite covers every scoring row, stable identity resolution,
 fail-closed parsing, semantic revisions, replacement and void behavior,
 deterministic replay, malformed inputs, atomic cache fallback, mocked provider
-timeouts and response boundaries, unchanged-revision reuse, singleton process
-ownership, adaptive polling, and the bar/panel presentation contract. Runtime
+timeouts and response boundaries, the loopback ten-game HTTP simulator,
+unchanged-revision reuse, singleton process ownership, adaptive polling, and
+the bar/panel presentation contract. Runtime
 screenshots and multi-monitor/compositor checks remain explicit release gates in
 [release-checklist.md](release-checklist.md).

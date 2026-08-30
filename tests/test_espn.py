@@ -67,6 +67,15 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual("CLE", plays[0]["offenseTeam"])
         self.assertEqual(STATS_URL, plays[0]["_statisticsUrl"])
 
+    def test_live_game_period_and_clock_are_normalized_for_the_selector(self):
+        payload = copy.deepcopy(SCOREBOARD)
+        status = payload["events"][0]["competitions"][0]["status"]
+        status["period"] = 2
+        status["displayClock"] = "07:43"
+        game = espn.extract_scoreboard(payload)["games"][0]
+        self.assertEqual(2, game["period"])
+        self.assertEqual("07:43", game["clock"])
+
     def test_missing_wallclock_falls_back_to_required_modified_time(self):
         summary = copy.deepcopy(SUMMARY)
         raw_play = summary["drives"]["previous"][0]["plays"][0]
@@ -239,6 +248,18 @@ class HttpBoundaryTests(unittest.TestCase):
         self.assertEqual("http_error", raised.exception.code)
         self.assertEqual("ESPN returned HTTP 403", str(raised.exception))
         self.assertNotIn("provider response body", str(raised.exception))
+
+    def test_simulator_transport_accepts_only_an_explicit_loopback_origin(self):
+        self.assertTrue(callable(espn.simulator_get_json("http://127.0.0.1:8765")))
+        for value in (
+            "https://127.0.0.1:8765",
+            "http://example.com:8765",
+            "http://user:pass@127.0.0.1:8765",
+            "http://127.0.0.1:8765/prefix",
+            "http://127.0.0.1",
+        ):
+            with self.subTest(value=value), self.assertRaises(espn.ProviderError):
+                espn.simulator_get_json(value)
 
 
 class OrchestrationTests(unittest.TestCase):

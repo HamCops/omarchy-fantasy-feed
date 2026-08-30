@@ -213,6 +213,7 @@ Panel {
     if (!feedService) return "OFFLINE"
     if (feedService.stale) return "STALE"
     if (feedService.demoMode) return "DEMO"
+    if (feedService.simulatorMode) return "SIM"
     var source = feedService.snapshot ? String(feedService.snapshot.sourceState || "") : ""
     if (source === "live") return "LIVE"
     if (source === "scheduled") return "SCHEDULED"

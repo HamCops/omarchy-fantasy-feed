@@ -33,7 +33,8 @@ a custom feed containing only plays by locally favorited players.
 
 A horizontally scrollable game strip appears across both feed surfaces. Click
 any matchup to toggle it independently; click **ALL** to hide or restore the
-entire slate. The same selection filters the compact feed, bar count,
+entire slate. Each chip includes the score plus its live quarter and remaining
+clock (or the scheduled/final provider detail). The same selection filters the compact feed, bar count,
 standalone feed, favorites feed, and weekly leaderboard.
 
 ## Requirements
@@ -93,6 +94,7 @@ omarchy-shell tdh.fantasy-feed status
 omarchy-shell tdh.fantasy-feed refresh
 omarchy-shell tdh.fantasy-feed demo
 omarchy-shell tdh.fantasy-feed live
+omarchy-shell tdh.fantasy-feed simulate
 omarchy-shell shell toggle tdh.fantasy-feed
 ```
 
@@ -109,6 +111,43 @@ python3 scripts/feed.py --fixture fixtures/replays/demo.json --at 2
 
 Normal JSON goes to stdout and diagnostics go to stderr, so the output can be
 piped safely to tools such as `jq`.
+
+### Ten-game simulator
+
+The development simulator exercises the real provider boundary rather than
+injecting normalized plays into QML. It serves ESPN-shaped scoreboard, summary,
+per-play statistics, and leaderboard data over loopback HTTP. Ten games advance
+together, one new fantasy play per game on each scoreboard request. The adapter
+still validates canonical ESPN URLs, routes them only to the explicit loopback
+origin, fetches summaries/statistics concurrently, and passes the result through
+the normal attribution, reducer, cache, service, and UI path.
+
+Start it from the repository in one terminal:
+
+```sh
+python3 scripts/espn_simulator.py
+```
+
+Then switch the installed plugin to its one-second load-test poll in another:
+
+```sh
+omarchy-shell tdh.fantasy-feed simulate
+omarchy-shell shell toggle tdh.fantasy-feed
+```
+
+The bar and headers show `SIM` while this mode is active. Calling `simulate`
+starts a fresh simulator-only cache; it never touches the real ESPN cache. View
+request count and measured peak concurrency with:
+
+```sh
+curl -s http://127.0.0.1:8765/__simulator__/status | jq
+```
+
+Use `Ctrl+C` in the server terminal and return the plugin to real data with
+`omarchy-shell tdh.fantasy-feed live`. The simulator accepts `--games`,
+`--max-plays`, and `--latency-ms` for alternate load profiles. The helper's
+`--provider-base-url` option rejects anything other than an HTTP loopback origin
+with an explicit port.
 
 ## Scoring
 
@@ -212,10 +251,12 @@ git diff --check
 ```
 
 Tests use injected responses and checked-in fixtures; they do not require the
-network. The suite covers scoring, weekly aggregation, position resolution,
+network. A loopback-only integration test starts the ten-game simulator on an
+ephemeral port. The suite covers scoring, weekly aggregation, position
+resolution,
 identity, fail-closed parsing, revision replacement, atomic cache recovery,
-provider boundaries, favorites persistence, process ownership, and the three
-UI hosts. Architecture details live in
+provider boundaries, concurrent simulated games, favorites persistence,
+process ownership, and the three UI hosts. Architecture details live in
 [docs/architecture.md](docs/architecture.md).
 
 ## License
