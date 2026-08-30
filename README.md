@@ -41,10 +41,18 @@ Positive and negative arrivals pulse green or red. Clicking a player jumps to
 their latest scored play. The scoring selection is shared by every surface and
 persists across shell restarts.
 
+The rail's alert policy watches only newly arriving plays involving **My
+Players**. `3+ PT PLAY` and `6+ PT PLAY` compare one favorite participant's
+points on that play in the currently selected PPR/STD mode—not the player's
+weekly total. Hidden games do not alert, and Omarchy's do-not-disturb setting is
+honored.
+
 A horizontally scrollable game strip appears across both feed surfaces. Click
 any matchup to toggle it independently; click **ALL** to hide or restore the
 entire slate. Compact two-line chips show `ARI 21–18 ATL` above the live quarter
-and remaining clock (or the scheduled/final provider detail). When a favorite's
+and remaining clock. Scheduled chips omit the repeated meridiem/time-zone suffix
+and use one `ALL TIMES EDT` note for the slate (`EST` when the provider changes
+for winter); final games show the provider's final detail. When a favorite's
 team has possession in the red zone, its chip turns amber and shows `★ RZ` plus
 down-and-distance in the tooltip. The same selection filters the compact feed,
 standalone feed, favorites feed, and weekly leaderboard.

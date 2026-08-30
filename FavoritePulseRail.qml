@@ -66,14 +66,18 @@ Item {
       showLabel: false
       options: [
         {value: "off", label: "ALERTS OFF"},
-        {value: "all", label: "★ ALL PLAYS"},
-        {value: "touchdowns", label: "★ TD ONLY"},
-        {value: "threshold3", label: "★ 3+ PTS"},
-        {value: "threshold6", label: "★ 6+ PTS"}
+        {value: "all", label: "★ EVERY PLAY"},
+        {value: "touchdowns", label: "★ TD PLAYS"},
+        {value: "threshold3", label: "★ 3+ PT PLAY"},
+        {value: "threshold6", label: "★ 6+ PT PLAY"}
       ]
       value: root.alertPreset
       foreground: root.foreground
       fontFamily: root.fontFamily
+      HoverHandler { id: alertHelpHover }
+      ToolTip.visible: alertHelpHover.hovered && !alertDropdown.popupOpen
+      ToolTip.text: "New plays by My Players only. Thresholds use the selected "
+        + "PPR/STD points from one play."
       onChanged: function(value) {
         if (root.service) root.service.setAlertPreset(value)
       }

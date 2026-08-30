@@ -14,6 +14,7 @@ Item {
   readonly property var games: service && Array.isArray(service.games) ? service.games : []
   readonly property bool allSelected: games.length > 0
     && service && service.enabledGameCount === games.length
+  readonly property string scheduledTimeZone: scheduledTimeZoneLabel()
 
   function matchupLabel(game) {
     var away = String(game && game.away ? game.away : "AWAY")
@@ -39,8 +40,24 @@ Item {
     if (state === "live" && period > 0 && clock)
       return "Q" + period + " " + clock
     var detail = String(game && game.detail ? game.detail : "")
-    if (detail) return detail.toUpperCase() === "FINAL" ? "FINAL" : detail
+    if (detail) {
+      if (detail.toUpperCase() === "FINAL") return "FINAL"
+      if (state === "scheduled")
+        return detail.replace(/\s+(?:AM|PM)\s+E[DS]T\s*$/i, "")
+      return detail
+    }
     if (state === "final") return "FINAL"
+    return ""
+  }
+
+  function scheduledTimeZoneLabel() {
+    for (var index = 0; index < games.length; index++) {
+      var game = games[index]
+      if (String(game && game.state ? game.state : "").toLowerCase() !== "scheduled")
+        continue
+      var match = String(game && game.detail ? game.detail : "").match(/\b(E[DS]T)\s*$/i)
+      if (match) return String(match[1]).toUpperCase()
+    }
     return ""
   }
 
@@ -74,6 +91,7 @@ Item {
       spacing: Style.space(6)
 
       Button {
+        id: allGamesButton
         text: "ALL\nGAMES"
         tooltipText: root.allSelected ? "Hide every game" : "Show every game"
         foreground: root.foreground
@@ -87,6 +105,19 @@ Item {
           if (root.allSelected) root.service.hideAllGames()
           else root.service.showAllGames()
         }
+      }
+
+      Text {
+        visible: root.scheduledTimeZone !== ""
+        width: visible ? implicitWidth : 0
+        height: allGamesButton.height
+        text: "ALL TIMES\n" + root.scheduledTimeZone
+        color: Qt.darker(root.foreground, 1.4)
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
       }
 
       Repeater {

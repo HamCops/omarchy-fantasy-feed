@@ -224,6 +224,9 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("service.hideAllGames()", self.game_selector)
         self.assertIn("service.showAllGames()", self.game_selector)
         self.assertIn("function gameStatusLabel(game)", self.game_selector)
+        self.assertIn("function scheduledTimeZoneLabel()", self.game_selector)
+        self.assertIn('text: "ALL TIMES\\n" + root.scheduledTimeZone', self.game_selector)
+        self.assertIn('replace(/\\s+(?:AM|PM)\\s+E[DS]T\\s*$/i, "")', self.game_selector)
         self.assertIn('return "Q" + period + " " + clock', self.game_selector)
         self.assertIn('String(game.awayScore) + "–" + String(game.homeScore)', self.game_selector)
         self.assertIn('return status ? matchup + "\\n" + status : matchup', self.game_selector)
@@ -238,6 +241,8 @@ class FeedUiContractTests(unittest.TestCase):
             self.assertIn("showGame(sourceEvent.gameId)", source)
         for value in ("off", "all", "touchdowns", "threshold3", "threshold6"):
             self.assertIn(f'value: "{value}"', self.pulse_rail)
+        self.assertIn("★ 3+ PT PLAY", self.pulse_rail)
+        self.assertIn("PPR/STD points from one play", self.pulse_rail)
         self.assertIn("service.favoritePlayerRows", self.pulse_rail)
         self.assertIn("player.spotlight", self.pulse_rail)
         self.assertIn("player.redZone", self.pulse_rail)
