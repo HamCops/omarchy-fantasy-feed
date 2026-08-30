@@ -51,11 +51,12 @@ A horizontally scrollable game strip appears across both feed surfaces. Click
 any matchup to toggle it independently; click **ALL** to hide or restore the
 entire slate. Compact two-line chips show `ARI 21–18 ATL` above the live quarter
 and remaining clock. Scheduled chips omit the repeated meridiem/time-zone suffix
-and use one `ALL TIMES EDT` note for the slate (`EST` when the provider changes
-for winter); final games show the provider's final detail. When a favorite's
-team has possession in the red zone, its chip turns amber and shows `★ RZ` plus
-down-and-distance in the tooltip. The same selection filters the compact feed,
-standalone feed, favorites feed, and weekly leaderboard.
+and format the provider's UTC kickoff in the user's system timezone, with one
+`ALL TIMES LOCAL` note for the slate; final games show the provider's final
+detail. When a favorite's team has possession in the red zone, its chip turns
+amber and shows `★ RZ` plus down-and-distance in the tooltip. The same selection
+filters the compact feed, standalone feed, favorites feed, and weekly
+leaderboard.
 
 Newly discovered plays enter a shared live tape one at a time instead of
 appearing as an unreadable poll-sized batch. Normal arrivals land every 600 ms;

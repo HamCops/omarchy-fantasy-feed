@@ -14,7 +14,7 @@ Item {
   readonly property var games: service && Array.isArray(service.games) ? service.games : []
   readonly property bool allSelected: games.length > 0
     && service && service.enabledGameCount === games.length
-  readonly property string scheduledTimeZone: scheduledTimeZoneLabel()
+  readonly property bool hasScheduledGames: scheduledGamesPresent()
 
   function matchupLabel(game) {
     var away = String(game && game.away ? game.away : "AWAY")
@@ -42,28 +42,34 @@ Item {
     var detail = String(game && game.detail ? game.detail : "")
     if (detail) {
       if (detail.toUpperCase() === "FINAL") return "FINAL"
-      if (state === "scheduled")
-        return detail.replace(/\s+(?:AM|PM)\s+E[DS]T\s*$/i, "")
+      if (state === "scheduled") return scheduledLocalTime(game, detail)
       return detail
     }
     if (state === "final") return "FINAL"
     return ""
   }
 
-  function scheduledTimeZoneLabel() {
+  function scheduledGamesPresent() {
     for (var index = 0; index < games.length; index++) {
       var game = games[index]
-      if (String(game && game.state ? game.state : "").toLowerCase() !== "scheduled")
-        continue
-      var match = String(game && game.detail ? game.detail : "").match(/\b(E[DS]T)\s*$/i)
-      if (match) return String(match[1]).toUpperCase()
+      if (String(game && game.state ? game.state : "").toLowerCase() === "scheduled")
+        return true
     }
-    return ""
+    return false
+  }
+
+  function scheduledLocalTime(game, fallbackDetail) {
+    var start = Date.parse(String(game && game.startTime ? game.startTime : ""))
+    if (isFinite(start)) return Qt.formatDateTime(new Date(start), "M/d - h:mm")
+    return String(fallbackDetail || "").replace(/\s+(?:AM|PM)\s+E[DS]T\s*$/i, "")
   }
 
   function gameTooltip(game) {
     var enabled = service && service.gameEnabled(game.id)
-    var detail = String(game && game.detail ? game.detail : "")
+    var state = String(game && game.state ? game.state : "").toLowerCase()
+    var detail = state === "scheduled"
+      ? gameStatusLabel(game) + " system local time"
+      : String(game && game.detail ? game.detail : "")
     var action = enabled ? "Hide this game" : "Show this game"
     var redZone = service && service.gameHasFavoriteRedZone(game)
       ? "Favorite offense in the red zone: " + service.favoriteRedZoneNames(game)
@@ -108,10 +114,10 @@ Item {
       }
 
       Text {
-        visible: root.scheduledTimeZone !== ""
+        visible: root.hasScheduledGames
         width: visible ? implicitWidth : 0
         height: allGamesButton.height
-        text: "ALL TIMES\n" + root.scheduledTimeZone
+        text: "ALL TIMES\nLOCAL"
         color: Qt.darker(root.foreground, 1.4)
         font.family: root.fontFamily
         font.pixelSize: Style.font.caption
