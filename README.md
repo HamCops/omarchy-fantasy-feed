@@ -1,5 +1,11 @@
 # Fantasy Feed
 
+[![CI](https://github.com/studioxvii/omarchy-fantasy-feed/actions/workflows/ci.yml/badge.svg)](https://github.com/studioxvii/omarchy-fantasy-feed/actions/workflows/ci.yml)
+[![Omarchy plugin](https://img.shields.io/badge/Omarchy-plugin-f26d5b)](https://omarchy.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-f5f5f5)](LICENSE)
+
+![Fantasy Feed running a ten-game simulation with favorite-player notifications](preview.png)
+
 Fantasy Feed is an Omarchy plugin for following NFL plays through a
 fantasy-football lens. A stable bar capsule shows feed health without resizing
 on every snap. The compact panel expands each play into raw text, stat deltas,
@@ -9,6 +15,12 @@ alerts. A standalone window adds weekly leaderboards and a favorites-only feed.
 
 It uses the active Omarchy theme and deliberately avoids sportsbook branding,
 accounts, contests, and roster management.
+
+Install it directly from GitHub:
+
+```sh
+omarchy plugin add "https://github.com/studioxvii/omarchy-fantasy-feed.git" --enable --yes
+```
 
 ## What it looks like
 
@@ -42,7 +54,7 @@ their latest scored play. The scoring selection is shared by every surface and
 persists across shell restarts.
 
 The rail's alert policy watches only newly arriving plays involving **My
-Players**. `3+ / PLAY` and `6+ / PLAY` compare one favorite participant's
+Players**. The `3+` and `6+` presets compare one favorite participant's
 points on that play in the currently selected PPR/STD mode—not the player's
 weekly total. Hidden games do not alert, and Omarchy's do-not-disturb setting is
 honored.
@@ -65,6 +77,16 @@ favorited player receives a green `★` spotlight and remains at the live edge f
 2.6 seconds. Scrolling away pauses auto-follow and exposes a `NEW ↑` control,
 so incoming plays cannot pull the reader away from the play they are reading.
 
+### Full- and half-screen layouts
+
+The standalone window tiles cleanly as the main view or as a compact sidecar.
+Both captures use the bundled deterministic demo, so positive, negative, zero,
+and voided scoring states remain reproducible.
+
+![Fantasy Feed full-screen layout](docs/screenshots/fantasy-feed-full.png)
+
+![Fantasy Feed half-screen layout](docs/screenshots/fantasy-feed-half.png)
+
 ## Requirements
 
 - Omarchy with the current shell plugin commands.
@@ -80,7 +102,7 @@ from the repository root:
 omarchy plugin add "file://$PWD" --enable --yes
 ```
 
-Once a public repository exists, the equivalent published form is:
+From the published repository:
 
 ```sh
 omarchy plugin add "https://github.com/studioxvii/omarchy-fantasy-feed.git" --enable --yes
@@ -310,3 +332,19 @@ process ownership, and the three UI hosts. Architecture details live in
 ## License
 
 [MIT](LICENSE) © 2026 Tom Hammond.
+
+## Built on revived hardware
+
+Fantasy Feed was designed, simulated, tested, and captured on an eight-year-old
+[Dell Latitude 7490](https://www.dell.com/support/product-details/en-ap/product/latitude-14-7490-laptop/resources/manuals)
+brought back to life with Omarchy. Dell's Latitude 7490 documentation dates to
+January 2018; this release was completed in August 2026.
+
+| Component | This machine |
+| --- | --- |
+| CPU | [Intel Core i5-8250U](https://www.intel.com/content/www/us/en/products/sku/124967/intel-core-i58250u-processor-6m-cache-up-to-3-40-ghz/specifications.html), 4 cores / 8 threads, 1.6–3.4 GHz |
+| Memory | 8 GB |
+| Graphics | Intel UHD Graphics 620 |
+| Storage | 256 GB SK hynix SC401 SATA SSD |
+| Display | 1920×1080 LG panel at 60 Hz |
+| System | Omarchy 4.0.1 on Linux 7.1.9 |

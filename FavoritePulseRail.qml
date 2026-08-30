@@ -66,10 +66,10 @@ Item {
       showLabel: false
       options: [
         {value: "off", label: "ALERTS OFF"},
-        {value: "all", label: "★ ALL PLAYS"},
-        {value: "touchdowns", label: "★ TD PLAYS"},
-        {value: "threshold3", label: "★ 3+ / PLAY"},
-        {value: "threshold6", label: "★ 6+ / PLAY"}
+        {value: "all", label: "★ ALL"},
+        {value: "touchdowns", label: "★ TD"},
+        {value: "threshold3", label: "★ 3+"},
+        {value: "threshold6", label: "★ 6+"}
       ]
       value: root.alertPreset
       foreground: root.foreground
