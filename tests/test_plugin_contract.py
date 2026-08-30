@@ -109,6 +109,28 @@ class ServiceBoundaryTests(unittest.TestCase):
         self.assertIn("function toggleFavorite(player)", self.source)
         self.assertIn("readonly property var favoriteEvents", self.source)
 
+    def test_service_stages_arrivals_and_holds_favorite_plays(self):
+        for property_name in (
+            "presentedEvents",
+            "pendingEventCount",
+            "lastPresentedToken",
+            "presentationSequence",
+            "favoriteSpotlightActive",
+        ):
+            self.assertRegex(self.source, rf"property [^\n]*\b{property_name}\b")
+        for method_name in (
+            "stagePresentation",
+            "revealNextEvent",
+            "arrivalDelay",
+            "eventHasFavorite",
+            "isSpotlightEvent",
+        ):
+            self.assertIn(f"function {method_name}(", self.source)
+        self.assertIn("readonly property int arrivalIntervalMilliseconds: 600", self.source)
+        self.assertIn("readonly property int favoriteHoldMilliseconds: 2600", self.source)
+        self.assertIn("id: arrivalTimer", self.source)
+        self.assertIn("stagePresentation(value)", self.source)
+
 
 class FeedUiContractTests(unittest.TestCase):
     @classmethod
@@ -177,7 +199,20 @@ class FeedUiContractTests(unittest.TestCase):
         self.assertIn("service.showAllGames()", self.game_selector)
         self.assertIn("function gameStatusLabel(game)", self.game_selector)
         self.assertIn('return "Q" + period + " " + clock', self.game_selector)
+        self.assertIn('String(game.awayScore) + "–" + String(game.homeScore)', self.game_selector)
+        self.assertIn('return status ? matchup + "\\n" + status : matchup', self.game_selector)
         self.assertNotRegex(self.game_selector, r"(?m)^\s*(Process|Timer)\s*\{")
+
+    def test_feed_surfaces_preserve_reading_position_and_spotlight_favorites(self):
+        for source in (self.panel, self.standalone):
+            self.assertIn("property bool followNewest: true", source)
+            self.assertIn("property int unseenArrivals: 0", source)
+            self.assertIn('String(root.unseenArrivals) + " NEW ↑"', source)
+            self.assertIn("isSpotlightEvent", source)
+            self.assertIn('eventCard.favoriteSpotlight ? "★ " : ""', source)
+            self.assertIn("onMovementEnded:", source)
+        self.assertIn("positionViewAtBeginning", self.panel)
+        self.assertIn("positionViewAtBeginning", self.standalone)
 
     def test_panel_exposes_required_states_controls_and_keys(self):
         for text in (

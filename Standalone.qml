@@ -15,6 +15,11 @@ Item {
   property string activeTab: "feed"
   property string scoringMode: "ppr"
   property string positionFilter: "ALL"
+  property bool followNewest: true
+  property int unseenArrivals: 0
+  property string _lastTopToken: ""
+  property real _heldContentY: 0
+  property real _lastFeedContentHeight: 0
   readonly property string playerSearch: leaderboardSearch.text.trim().toLowerCase()
 
   readonly property color foreground: Color.foreground
@@ -86,6 +91,45 @@ Item {
   function requestClose() {
     if (shell && typeof shell.hide === "function") shell.hide("tdh.fantasy-feed")
     else window.visible = false
+  }
+
+  function eventToken(event) {
+    return service ? service.eventToken(event) : ""
+  }
+
+  function followLiveTape() {
+    followNewest = true
+    unseenArrivals = 0
+    Qt.callLater(function() {
+      if (feedList.count > 0) feedList.positionViewAtBeginning()
+    })
+  }
+
+  function resetTapeTracking() {
+    followNewest = true
+    unseenArrivals = 0
+    _lastTopToken = displayedEvents.length > 0 ? eventToken(displayedEvents[0]) : ""
+    Qt.callLater(function() {
+      if (feedList.count > 0) feedList.positionViewAtBeginning()
+    })
+  }
+
+  function handleDisplayedEventsChange() {
+    var topToken = displayedEvents.length > 0 ? eventToken(displayedEvents[0]) : ""
+    if (_lastTopToken === "") {
+      _lastTopToken = topToken
+      return
+    }
+    if (topToken === "" || topToken === _lastTopToken) return
+    var isPresentedArrival = service
+      && topToken === String(service.lastPresentedToken || "")
+    if (isPresentedArrival) {
+      if (followNewest)
+        Qt.callLater(function() { feedList.positionViewAtBeginning() })
+      else
+        unseenArrivals += 1
+    }
+    _lastTopToken = topToken
   }
 
   function signedPoints(value) {
@@ -185,9 +229,11 @@ Item {
   function autoRefreshLabel() {
     if (!service) return "AUTO REFRESH OFFLINE"
     if (service.loading) return "AUTO REFRESHING"
-    if (service.nextPollSeconds > 0)
-      return "AUTO REFRESH " + countdownLabel(service.nextPollSeconds)
-    return "AUTO REFRESH ON"
+    var label = service.nextPollSeconds > 0
+      ? "AUTO REFRESH " + countdownLabel(service.nextPollSeconds)
+      : "AUTO REFRESH ON"
+    return service.pendingEventCount > 0
+      ? label + " · " + service.pendingEventCount + " INCOMING" : label
   }
 
   function countdownLabel(seconds) {
@@ -212,6 +258,8 @@ Item {
   }
 
   onScoringModeChanged: scoringDropdown.value = scoringMode
+  onDisplayedEventsChanged: handleDisplayedEventsChange()
+  onActiveTabChanged: resetTapeTracking()
 
   FloatingWindow {
     id: window
@@ -442,16 +490,36 @@ Item {
             boundsBehavior: Flickable.StopAtBounds
             model: root.displayedEvents
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            onMovementEnded: {
+              root.followNewest = atYBeginning
+              if (root.followNewest) root.unseenArrivals = 0
+              root._heldContentY = contentY
+              root._lastFeedContentHeight = contentHeight
+            }
+            onContentHeightChanged: {
+              var increase = contentHeight - root._lastFeedContentHeight
+              if (!root.followNewest && root._lastFeedContentHeight > 0 && increase > 0) {
+                contentY = root._heldContentY + increase
+                root._heldContentY = contentY
+              }
+              root._lastFeedContentHeight = contentHeight
+            }
 
             delegate: Rectangle {
               id: eventCard
               required property var modelData
               readonly property var eventData: modelData
+              readonly property bool favoriteSpotlight: root.service
+                ? root.service.isSpotlightEvent(eventData) : false
               width: ListView.view.width
               height: eventColumn.implicitHeight + Style.space(12)
-              color: "transparent"
-              border.width: 1
-              border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
+              color: favoriteSpotlight
+                ? Qt.rgba(root.positivePoints.r, root.positivePoints.g, root.positivePoints.b, 0.08)
+                : "transparent"
+              border.width: favoriteSpotlight ? 2 : 1
+              border.color: favoriteSpotlight
+                ? root.positivePoints
+                : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
 
               Column {
                 id: eventColumn
@@ -479,7 +547,8 @@ Item {
                   Text {
                     id: lifecycleText
                     anchors.right: parent.right
-                    text: String(eventCard.eventData.lifecycle || "current").toUpperCase()
+                    text: (eventCard.favoriteSpotlight ? "★ " : "")
+                      + String(eventCard.eventData.lifecycle || "current").toUpperCase()
                     color: eventCard.eventData.lifecycle === "voided" ? root.negativePoints : Qt.darker(root.foreground, 1.35)
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
@@ -508,6 +577,22 @@ Item {
 
               }
             }
+          }
+
+          Button {
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: Style.space(8)
+            z: 3
+            visible: root.activeTab !== "leaders"
+              && !root.followNewest && root.unseenArrivals > 0
+            text: String(root.unseenArrivals) + " NEW ↑"
+            tooltipText: "Return to the live edge"
+            foreground: root.positivePoints
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            bordered: true
+            onClicked: root.followLiveTape()
           }
 
           Text {

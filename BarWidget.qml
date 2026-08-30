@@ -33,13 +33,17 @@ BarWidget {
     var label = statusLabel()
     if (feedService && feedService.visibleEvents.length > 0)
       label += " · " + feedService.visibleEvents.length + " PLAYS"
-    if (feedService && feedService.favoriteCount > 0)
+    if (feedService && feedService.favoriteSpotlightActive)
+      label += " · ★ PLAY"
+    else if (feedService && feedService.favoriteCount > 0)
       label += " · ★" + feedService.favoriteCount
     return label
   }
 
   function tooltip() {
-    var status = feedStale ? "Stale fantasy feed" : (feedLoading ? "Refreshing fantasy feed" : "Fantasy feed")
+    var status = feedService && feedService.favoriteSpotlightActive
+      ? "Favorite-player play"
+      : (feedStale ? "Stale fantasy feed" : (feedLoading ? "Refreshing fantasy feed" : "Fantasy feed"))
     var play = latestEvent ? String(latestEvent.rawText || "") : ""
     var message = status + "\nLeft click: open feed · Middle click: refresh"
     return play ? message + "\n" + play : message
@@ -105,7 +109,7 @@ BarWidget {
       return glyph + "  " + root.barLabel()
     }
     fontSize: Style.font.body
-    active: root.feedStale
+    active: root.feedStale || (root.feedService && root.feedService.favoriteSpotlightActive)
     dimmed: !root.feedService || (!root.latestEvent && !root.feedLoading)
     tooltipText: root.tooltip()
 

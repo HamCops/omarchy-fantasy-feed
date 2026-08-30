@@ -15,15 +15,19 @@ Item {
   readonly property bool allSelected: games.length > 0
     && service && service.enabledGameCount === games.length
 
-  function gameLabel(game) {
+  function matchupLabel(game) {
     var away = String(game && game.away ? game.away : "AWAY")
     var home = String(game && game.home ? game.home : "HOME")
     var hasScores = game && game.awayScore !== undefined && game.homeScore !== undefined
-    var matchup = hasScores
-      ? away + " " + String(game.awayScore) + " @ " + home + " " + String(game.homeScore)
-      : away + " @ " + home
+    return hasScores
+      ? away + " " + String(game.awayScore) + "–" + String(game.homeScore) + " " + home
+      : away + "–" + home
+  }
+
+  function gameLabel(game) {
+    var matchup = matchupLabel(game)
     var status = gameStatusLabel(game)
-    return status ? matchup + " · " + status : matchup
+    return status ? matchup + "\n" + status : matchup
   }
 
   function gameStatusLabel(game) {
@@ -63,11 +67,12 @@ Item {
       spacing: Style.space(6)
 
       Button {
-        text: "ALL"
+        text: "ALL\nGAMES"
         tooltipText: root.allSelected ? "Hide every game" : "Show every game"
         foreground: root.foreground
         fontFamily: root.fontFamily
         fontSize: Style.font.caption
+        verticalPadding: Style.space(4)
         bordered: true
         selected: root.allSelected
         onClicked: {
@@ -90,6 +95,7 @@ Item {
           foreground: gameSelected ? root.foreground : Qt.darker(root.foreground, 1.65)
           fontFamily: root.fontFamily
           fontSize: Style.font.caption
+          verticalPadding: Style.space(4)
           bordered: true
           selected: gameSelected
           onClicked: if (root.service) root.service.toggleGame(modelData.id)

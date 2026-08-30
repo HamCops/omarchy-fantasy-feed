@@ -49,7 +49,13 @@ def _timestamp(moment: datetime) -> str:
 
 
 class SimulatorState:
-    def __init__(self, games: int = 10, max_plays: int = 120, latency_ms: int = 25):
+    def __init__(
+        self,
+        games: int = 10,
+        max_plays: int = 120,
+        latency_ms: int = 25,
+        staggered: bool = True,
+    ):
         if games < 1 or games > len(TEAM_ABBREVIATIONS) // 2:
             raise ValueError(f"games must be between 1 and {len(TEAM_ABBREVIATIONS) // 2}")
         if max_plays < 1 or max_plays > 9999:
@@ -59,7 +65,10 @@ class SimulatorState:
         self.games = games
         self.max_plays = max_plays
         self.latency_ms = latency_ms
+        self.staggered = staggered
         self.tick = 0
+        self.game_play_counts = [0] * games
+        self.game_play_ticks: list[list[int]] = [[] for _game in range(games)]
         self.total_requests = 0
         self.active_requests = 0
         self.peak_concurrent_requests = 0
@@ -80,14 +89,42 @@ class SimulatorState:
 
     def advance(self) -> int:
         with self._lock:
-            self.tick = min(self.max_plays, self.tick + 1)
+            self.tick += 1
+            if self.staggered:
+                advance_count = min(
+                    self.games,
+                    5 if self.tick % 11 == 0 else 1 + (self.tick * 7) % 3,
+                )
+                start = (self.tick * 3) % self.games
+                game_indexes = [
+                    (start + offset) % self.games for offset in range(advance_count)
+                ]
+            else:
+                game_indexes = list(range(self.games))
+            for game_index in game_indexes:
+                if self.game_play_counts[game_index] >= self.max_plays:
+                    continue
+                self.game_play_counts[game_index] += 1
+                self.game_play_ticks[game_index].append(self.tick)
             return self.tick
 
     def current_tick(self) -> int:
         with self._lock:
             return self.tick
 
-    def metrics(self) -> dict[str, int]:
+    def game_play_count(self, game_index: int) -> int:
+        with self._lock:
+            return self.game_play_counts[game_index]
+
+    def exposed_play_count(self) -> int:
+        with self._lock:
+            return sum(self.game_play_counts)
+
+    def play_tick(self, game_index: int, play_number: int) -> int:
+        with self._lock:
+            return self.game_play_ticks[game_index][play_number - 1]
+
+    def metrics(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "tick": self.tick,
@@ -96,6 +133,9 @@ class SimulatorState:
                 "totalRequests": self.total_requests,
                 "activeRequests": self.active_requests,
                 "peakConcurrentRequests": self.peak_concurrent_requests,
+                "exposedPlays": sum(self.game_play_counts),
+                "gamePlayCounts": list(self.game_play_counts),
+                "delivery": "staggered" if self.staggered else "all-games",
             }
 
     @staticmethod
@@ -136,6 +176,7 @@ class SimulatorState:
         events = []
         for game_index in range(self.games):
             away_index, home_index = self.teams_for_game(game_index)
+            play_count = self.game_play_count(game_index)
             period, clock = self.game_clock(game_index, tick)
             events.append(
                 {
@@ -156,7 +197,7 @@ class SimulatorState:
                             "competitors": [
                                 {
                                     "homeAway": "away",
-                                    "score": str((tick + game_index) // 5 * 3),
+                                    "score": str((play_count + game_index) // 5 * 3),
                                     "team": {
                                         "id": self.team_id(away_index),
                                         "abbreviation": TEAM_ABBREVIATIONS[away_index],
@@ -164,7 +205,7 @@ class SimulatorState:
                                 },
                                 {
                                     "homeAway": "home",
-                                    "score": str((tick + game_index + 2) // 6 * 3),
+                                    "score": str((play_count + game_index + 2) // 6 * 3),
                                     "team": {
                                         "id": self.team_id(home_index),
                                         "abbreviation": TEAM_ABBREVIATIONS[home_index],
@@ -200,7 +241,8 @@ class SimulatorState:
         away_index, home_index = self.teams_for_game(game_index)
         defense_index = home_index if offense_index == away_index else away_index
         yards = self.play_yards(game_index, play_number)
-        period, clock = self.game_clock(game_index, play_number)
+        exposure_tick = self.play_tick(game_index, play_number)
+        period, clock = self.game_clock(game_index, exposure_tick)
         kind = self.play_kind(game_index, play_number)
         quarterback = self.athlete(offense_index, "QB")
         receiver = self.athlete(offense_index, "WR")
@@ -215,7 +257,7 @@ class SimulatorState:
             play_type = "Rush"
             text = f"{runner['firstName'][0]}.{runner['lastName']} rushes for {yards} yards."
         wallclock = self._base_time + timedelta(
-            seconds=play_number * 20, milliseconds=game_index * 25
+            seconds=exposure_tick * 20, milliseconds=game_index * 25
         )
         return {
             "id": play_id,
@@ -349,16 +391,16 @@ class SimulatorState:
         game_index = int(match.group(1)) - 1
         if game_index < 0 or game_index >= self.games:
             return None
-        tick = self.current_tick()
+        play_count = self.game_play_count(game_index)
         away_index, home_index = self.teams_for_game(game_index)
         return {
             "boxscore": {
                 "players": [
                     self.player_group(
-                        away_index, self.totals(game_index, away_index, tick)
+                        away_index, self.totals(game_index, away_index, play_count)
                     ),
                     self.player_group(
-                        home_index, self.totals(game_index, home_index, tick)
+                        home_index, self.totals(game_index, home_index, play_count)
                     ),
                 ]
             },
@@ -368,7 +410,7 @@ class SimulatorState:
                 "current": {
                     "plays": [
                         self.play(game_index, play_number)
-                        for play_number in range(1, tick + 1)
+                        for play_number in range(1, play_count + 1)
                     ]
                 },
             },
@@ -419,8 +461,14 @@ def create_server(
     max_plays: int = 120,
     latency_ms: int = 25,
     log_ticks: bool = False,
+    staggered: bool = True,
 ) -> ThreadingHTTPServer:
-    state = SimulatorState(games=games, max_plays=max_plays, latency_ms=latency_ms)
+    state = SimulatorState(
+        games=games,
+        max_plays=max_plays,
+        latency_ms=latency_ms,
+        staggered=staggered,
+    )
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "FantasyFeedSimulator/1"
@@ -455,7 +503,7 @@ def create_server(
                     ):
                         print(
                             f"simulator tick {state.current_tick()}: "
-                            f"{state.games} games, {state.current_tick() * state.games} plays exposed",
+                            f"{state.games} games, {state.exposed_play_count()} plays exposed",
                             file=sys.stderr,
                             flush=True,
                         )
@@ -505,6 +553,11 @@ def main() -> int:
     parser.add_argument("--games", type=_positive_int, default=10)
     parser.add_argument("--max-plays", type=_positive_int, default=120)
     parser.add_argument("--latency-ms", type=int, default=25)
+    parser.add_argument(
+        "--all-games-per-tick",
+        action="store_true",
+        help="advance every game per tick instead of the natural staggered schedule",
+    )
     arguments = parser.parse_args()
     try:
         server = create_server(
@@ -514,6 +567,7 @@ def main() -> int:
             max_plays=arguments.max_plays,
             latency_ms=arguments.latency_ms,
             log_ticks=True,
+            staggered=not arguments.all_games_per_tick,
         )
     except (OSError, ValueError) as error:
         print(f"espn_simulator.py: {error}", file=sys.stderr)

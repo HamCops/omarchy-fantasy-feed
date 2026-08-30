@@ -42,6 +42,9 @@ Panel {
   property int selectedIndex: 0
   property bool cursorActive: true
   property string scoringMode: "ppr"
+  property bool followNewest: true
+  property int unseenArrivals: 0
+  property string _lastTopToken: ""
 
   function open() {
     root.controller.show()
@@ -83,6 +86,44 @@ Panel {
     if (newestEvents.length === 0) return
     cursorActive = true
     selectedIndex = Math.max(0, Math.min(selectedIndex + delta, newestEvents.length - 1))
+    followNewest = selectedIndex === 0
+    if (followNewest) unseenArrivals = 0
+  }
+
+  function eventToken(event) {
+    return feedService ? feedService.eventToken(event) : ""
+  }
+
+  function followLiveTape() {
+    followNewest = true
+    unseenArrivals = 0
+    selectedIndex = 0
+    cursorActive = true
+    Qt.callLater(function() {
+      if (eventList.count > 0) eventList.positionViewAtBeginning()
+    })
+  }
+
+  function handleEventModelChange() {
+    clampSelection()
+    var topToken = newestEvents.length > 0 ? eventToken(newestEvents[0]) : ""
+    if (_lastTopToken === "") {
+      _lastTopToken = topToken
+      return
+    }
+    if (topToken === "" || topToken === _lastTopToken) return
+    var isPresentedArrival = feedService
+      && topToken === String(feedService.lastPresentedToken || "")
+    if (isPresentedArrival) {
+      if (followNewest) {
+        selectedIndex = 0
+        Qt.callLater(function() { eventList.positionViewAtBeginning() })
+      } else {
+        unseenArrivals += 1
+        selectedIndex = Math.min(selectedIndex + 1, newestEvents.length - 1)
+      }
+    }
+    _lastTopToken = topToken
   }
 
   function refreshFeed() {
@@ -226,7 +267,10 @@ Panel {
     if (feedService.loading) return "Refreshing…"
     if (feedService.lastUpdated) {
       var compact = String(feedService.lastUpdated).replace("T", " ").replace("Z", " UTC")
-      return newestEvents.length + (newestEvents.length === 1 ? " play · " : " plays · ") + compact
+      var incoming = feedService.pendingEventCount > 0
+        ? " · " + feedService.pendingEventCount + " incoming" : ""
+      return newestEvents.length + (newestEvents.length === 1 ? " play · " : " plays · ")
+        + compact + incoming
     }
     return newestEvents.length + (newestEvents.length === 1 ? " play" : " plays")
   }
@@ -250,12 +294,15 @@ Panel {
     return "Keep this panel open or switch to Demo for a deterministic sample."
   }
 
-  onNewestEventsChanged: clampSelection()
+  onNewestEventsChanged: handleEventModelChange()
   onScoringModeChanged: scoringDropdown.value = scoringMode
   onOpenedChanged: {
     if (opened) {
       selectedIndex = 0
       cursorActive = true
+      followNewest = true
+      unseenArrivals = 0
+      _lastTopToken = newestEvents.length > 0 ? eventToken(newestEvents[0]) : ""
     }
   }
 
@@ -426,6 +473,17 @@ Panel {
           foreground: root.contentForeground
         }
 
+        Button {
+          visible: !root.followNewest && root.unseenArrivals > 0
+          text: String(root.unseenArrivals) + " NEW ↑"
+          tooltipText: "Return to the live edge"
+          foreground: root.positivePoints
+          fontFamily: root.contentFontFamily
+          fontSize: Style.font.caption
+          bordered: true
+          onClicked: root.followLiveTape()
+        }
+
         Item {
           visible: !root.hasEvents
           width: parent.width
@@ -492,12 +550,18 @@ Panel {
           model: root.newestEvents
           currentIndex: root.selectedIndex
           onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+          onMovementEnded: {
+            root.followNewest = atYBeginning
+            if (root.followNewest) root.unseenArrivals = 0
+          }
 
           delegate: CursorSurface {
             id: eventCard
             required property var modelData
             required property int index
             readonly property var fantasyEvent: modelData
+            readonly property bool favoriteSpotlight: root.feedService
+              ? root.feedService.isSpotlightEvent(fantasyEvent) : false
 
             width: ListView.view.width
             height: eventColumn.implicitHeight + Style.space(12)
@@ -505,6 +569,15 @@ Panel {
             accent: Color.accent
             bordered: true
             hasCursor: root.cursorActive && root.selectedIndex === index
+
+            Rectangle {
+              anchors.fill: parent
+              color: eventCard.favoriteSpotlight
+                ? Qt.rgba(root.positivePoints.r, root.positivePoints.g, root.positivePoints.b, 0.08)
+                : "transparent"
+              border.width: eventCard.favoriteSpotlight ? 2 : 0
+              border.color: root.positivePoints
+            }
 
             HoverHandler {
               onHoveredChanged: {
@@ -543,7 +616,8 @@ Panel {
                 Text {
                   id: lifecycleLabel
                   anchors.right: parent.right
-                  text: root.lifecycle(eventCard.fantasyEvent)
+                  text: (eventCard.favoriteSpotlight ? "★ " : "")
+                    + root.lifecycle(eventCard.fantasyEvent)
                   color: eventCard.fantasyEvent.lifecycle === "voided"
                     ? root.contentUrgent
                     : (eventCard.fantasyEvent.lifecycle === "corrected" ? Color.accent : Qt.darker(root.contentForeground, 1.35))

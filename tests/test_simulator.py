@@ -17,10 +17,33 @@ import espn_simulator
 import feed
 
 
+class SimulatorScheduleTests(unittest.TestCase):
+    def test_default_schedule_staggers_games_with_deterministic_bursts(self):
+        state = espn_simulator.SimulatorState(
+            games=10, max_plays=30, latency_ms=0
+        )
+        arrivals = []
+        previous_total = 0
+        for _tick in range(12):
+            state.scoreboard()
+            total = state.exposed_play_count()
+            arrivals.append(total - previous_total)
+            previous_total = total
+
+        self.assertEqual([2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 5, 1], arrivals)
+        self.assertTrue(all(count > 0 for count in state.metrics()["gamePlayCounts"]))
+        self.assertNotIn(10, arrivals)
+
+
 class SimulatorIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.server = espn_simulator.create_server(
-            "127.0.0.1", 0, games=10, max_plays=30, latency_ms=5
+            "127.0.0.1",
+            0,
+            games=10,
+            max_plays=30,
+            latency_ms=5,
+            staggered=False,
         )
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()

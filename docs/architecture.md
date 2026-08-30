@@ -96,8 +96,10 @@ refresh. Partial provider data never becomes a fresh snapshot.
 For load testing, `scripts/espn_simulator.py` exposes the same approved URL
 paths from a loopback-only threaded HTTP server. The adapter first validates the
 canonical ESPN target, then substitutes only the origin for an explicitly
-selected `http://localhost:port` transport. The default scenario advances ten
-live games at once and adds ten interleaved fantasy plays per observation. This
+selected `http://localhost:port` transport. The default scenario keeps ten
+games live but advances one to three deterministic games per observation, plus
+an occasional five-game burst. An opt-in all-games-per-tick profile retains the
+original maximum-load scenario. This
 keeps simulator traffic on the real extraction and reduction path while making
 external network access unnecessary. Simulator mode polls every second and uses
 a dedicated cache that is reset on entry; production live/cache behavior is
@@ -210,6 +212,15 @@ cache snapshot and exposes its error. Any other status, invalid JSON, invalid
 schema, or the 18-second watchdog keeps the last in-memory snapshot visible and
 marks it stale.
 
+Fresh provider state is applied immediately, but event presentation is staged
+through a shared service-owned queue. New `(eventId, revision)` tokens release
+at 600 ms under normal load, 300 ms during catch-up, and 160 ms for a large
+backlog. A favorite-player arrival holds the live edge and spotlight for 2.6
+seconds. Initial hydration plus mode/week changes bypass the animation so an
+existing 200-play cache never replays on startup. Each presentation surface can
+pause follow mode independently; it preserves the reading position and counts
+newly revealed cards until the reader returns to the live edge.
+
 Polling is a one-shot decision based on individual normalized games:
 
 | Slate condition | Next refresh |
@@ -258,8 +269,8 @@ standalone surfaces. The singleton service owns a set of hidden game IDs and
 derives selected event and favorite-event views, so toggling any combination of
 matchups immediately stays in sync across windows and the bar. Weekly player
 rows retain their game IDs so the same selection also filters the leaderboard.
-Each matchup chip renders the normalized score and provider status; live games
-prefer the explicit period plus remaining clock.
+Each compact two-line matchup chip renders `AWAY score–score HOME` and provider
+status; live games prefer the explicit period plus remaining clock.
 
 `Standalone.qml` owns an ordinary `FloatingWindow`, so Hyprland can move, tile,
 or place it like another app instead of covering the current workspace as a
@@ -282,7 +293,7 @@ omarchy plugin validate "$PWD"
 git diff --check
 ```
 
-On 2026-08-29 this checkout passed all 80 tests and
+On 2026-08-29 this checkout passed all 83 tests and
 `omarchy plugin validate "$PWD"`.
 
 The current suite covers every scoring row, stable identity resolution,

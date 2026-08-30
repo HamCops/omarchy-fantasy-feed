@@ -11,7 +11,9 @@ Item {
 
   property var snapshot: null
   readonly property var games: snapshot && Array.isArray(snapshot.games) ? snapshot.games : []
-  readonly property var events: snapshot && Array.isArray(snapshot.events) ? snapshot.events : []
+  readonly property var snapshotEvents: snapshot && Array.isArray(snapshot.events) ? snapshot.events : []
+  property var presentedEvents: []
+  readonly property var events: presentedEvents
   readonly property var latestEvent: events.length > 0 ? events[events.length - 1] : null
   readonly property var leaderboard: snapshot && Array.isArray(snapshot.leaderboard) ? snapshot.leaderboard : []
   readonly property var week: snapshot && snapshot.week ? snapshot.week : null
@@ -84,6 +86,13 @@ Item {
   property bool _refreshAfterExit: false
   property bool _favoritesLoaded: false
   property int _consecutiveFailures: 0
+  property string _presentationContext: ""
+  property var _arrivalQueue: []
+  readonly property int pendingEventCount: _arrivalQueue.length
+  property string lastPresentedToken: ""
+  property int presentationSequence: 0
+  property string favoriteSpotlightToken: ""
+  property bool favoriteSpotlightActive: false
 
   readonly property string configHome: String(Quickshell.env("XDG_CONFIG_HOME") || "").startsWith("/")
     ? Quickshell.env("XDG_CONFIG_HOME") : Quickshell.env("HOME") + "/.config"
@@ -103,6 +112,10 @@ Item {
   readonly property var failureBackoffSchedule: [60, 120, 300, 900]
   readonly property int dailyCheckHour: 6
   readonly property int watchdogMilliseconds: 18000
+  readonly property int arrivalIntervalMilliseconds: 600
+  readonly property int arrivalCatchupMilliseconds: 300
+  readonly property int arrivalUrgentMilliseconds: 160
+  readonly property int favoriteHoldMilliseconds: 2600
 
   function compactError(value) {
     var text = String(value || "").replace(/\s+/g, " ").trim()
@@ -155,6 +168,150 @@ Item {
       if (String(favorites[index].playerId || "") === id) return true
     }
     return false
+  }
+
+  function eventToken(event) {
+    if (!event || typeof event !== "object") return ""
+    var identity = String(event.eventId || (String(event.provider || "") + ":"
+      + String(event.gameId || "") + ":" + String(event.playId || "")))
+    var revision = String(event.revision || event.sourceRevision || "")
+    return identity && revision ? identity + "|" + revision : ""
+  }
+
+  function eventIdentity(event) {
+    if (!event || typeof event !== "object") return ""
+    return String(event.eventId || (String(event.provider || "") + ":"
+      + String(event.gameId || "") + ":" + String(event.playId || "")))
+  }
+
+  function eventHasFavorite(event) {
+    var participants = event && event.participants
+      && event.participants.length !== undefined ? event.participants : []
+    for (var index = 0; index < participants.length; index++) {
+      if (isFavorite(participants[index].playerId)) return true
+    }
+    return false
+  }
+
+  function isSpotlightEvent(event) {
+    return favoriteSpotlightActive && eventToken(event) === favoriteSpotlightToken
+  }
+
+  function dataModeName() {
+    if (demoMode) return "demo"
+    if (simulatorMode) return "simulator"
+    return "live"
+  }
+
+  function presentationContextFor(value) {
+    var valueWeek = value && value.week ? value.week : null
+    return dataModeName() + ":" + String(valueWeek ? valueWeek.season : "")
+      + ":" + String(valueWeek ? valueWeek.seasonType : "")
+      + ":" + String(valueWeek ? valueWeek.number : "")
+  }
+
+  function eventOrder(left, right) {
+    var wallclockOrder = String(left && left.wallclock ? left.wallclock : "")
+      .localeCompare(String(right && right.wallclock ? right.wallclock : ""))
+    if (wallclockOrder !== 0) return wallclockOrder
+    var gameOrder = String(left && left.gameId ? left.gameId : "")
+      .localeCompare(String(right && right.gameId ? right.gameId : ""))
+    if (gameOrder !== 0) return gameOrder
+    var sequenceOrder = Number(left && left.sequence) - Number(right && right.sequence)
+    if (isFinite(sequenceOrder) && sequenceOrder !== 0) return sequenceOrder
+    return eventIdentity(left).localeCompare(eventIdentity(right))
+  }
+
+  function resetPresentation(nextEvents, context) {
+    arrivalTimer.stop()
+    spotlightTimer.stop()
+    _arrivalQueue = []
+    _presentationContext = context
+    presentedEvents = nextEvents.slice()
+    lastPresentedToken = presentedEvents.length > 0
+      ? eventToken(presentedEvents[presentedEvents.length - 1]) : ""
+    favoriteSpotlightToken = ""
+    favoriteSpotlightActive = false
+  }
+
+  function stagePresentation(value) {
+    var nextEvents = value && Array.isArray(value.events) ? value.events : []
+    var context = presentationContextFor(value)
+    if (_presentationContext === "" || _presentationContext !== context) {
+      resetPresentation(nextEvents, context)
+      return
+    }
+
+    var known = ({})
+    for (var presentedIndex = 0; presentedIndex < presentedEvents.length; presentedIndex++) {
+      var presentedToken = eventToken(presentedEvents[presentedIndex])
+      if (presentedToken) known["$" + presentedToken] = true
+    }
+    for (var queuedIndex = 0; queuedIndex < _arrivalQueue.length; queuedIndex++) {
+      var queuedToken = eventToken(_arrivalQueue[queuedIndex])
+      if (queuedToken) known["$" + queuedToken] = true
+    }
+
+    var queue = _arrivalQueue.slice()
+    for (var eventIndex = 0; eventIndex < nextEvents.length; eventIndex++) {
+      var event = nextEvents[eventIndex]
+      var token = eventToken(event)
+      if (!token || known["$" + token]) continue
+      var identity = eventIdentity(event)
+      var replacedQueuedRevision = false
+      for (var queueIndex = 0; queueIndex < queue.length; queueIndex++) {
+        if (eventIdentity(queue[queueIndex]) !== identity) continue
+        queue[queueIndex] = event
+        replacedQueuedRevision = true
+        break
+      }
+      if (!replacedQueuedRevision) queue.push(event)
+      known["$" + token] = true
+    }
+    _arrivalQueue = queue
+    if (_arrivalQueue.length > 0 && !arrivalTimer.running) {
+      arrivalTimer.interval = Math.min(250, arrivalIntervalMilliseconds)
+      arrivalTimer.start()
+    }
+  }
+
+  function arrivalDelay() {
+    if (_arrivalQueue.length > 24) return arrivalUrgentMilliseconds
+    if (_arrivalQueue.length > 10) return arrivalCatchupMilliseconds
+    return arrivalIntervalMilliseconds
+  }
+
+  function revealNextEvent() {
+    if (_arrivalQueue.length === 0) return
+    var queue = _arrivalQueue.slice()
+    var event = queue.shift()
+    _arrivalQueue = queue
+
+    var identity = eventIdentity(event)
+    var nextPresented = []
+    for (var index = 0; index < presentedEvents.length; index++) {
+      if (eventIdentity(presentedEvents[index]) !== identity)
+        nextPresented.push(presentedEvents[index])
+    }
+    nextPresented.push(event)
+    nextPresented.sort(eventOrder)
+    if (nextPresented.length > 200)
+      nextPresented = nextPresented.slice(nextPresented.length - 200)
+    presentedEvents = nextPresented
+    lastPresentedToken = eventToken(event)
+    presentationSequence += 1
+
+    var favoriteArrival = eventHasFavorite(event)
+    if (favoriteArrival) {
+      favoriteSpotlightToken = lastPresentedToken
+      favoriteSpotlightActive = true
+      spotlightTimer.restart()
+    }
+    if (_arrivalQueue.length > 0) {
+      arrivalTimer.interval = favoriteArrival
+        ? favoriteHoldMilliseconds : arrivalDelay()
+      arrivalTimer.start()
+    }
   }
 
   function gameEnabled(gameId) {
@@ -355,6 +512,7 @@ Item {
       return
     }
 
+    stagePresentation(value)
     snapshot = value
     loading = false
     lastUpdated = value.observedAt
@@ -452,6 +610,19 @@ Item {
   }
 
   Timer {
+    id: arrivalTimer
+    repeat: false
+    onTriggered: root.revealNextEvent()
+  }
+
+  Timer {
+    id: spotlightTimer
+    interval: root.favoriteHoldMilliseconds
+    repeat: false
+    onTriggered: root.favoriteSpotlightActive = false
+  }
+
+  Timer {
     id: countdownTimer
     interval: 1000
     repeat: true
@@ -526,6 +697,8 @@ Item {
 
   Component.onDestruction: {
     pollTimer.stop()
+    arrivalTimer.stop()
+    spotlightTimer.stop()
     countdownTimer.stop()
     watchdog.stop()
     favoritesSaveTimer.stop()
@@ -542,6 +715,8 @@ Item {
         stale: root.stale,
         sourceState: root.snapshot ? root.snapshot.sourceState : "unavailable",
         eventCount: root.events.length,
+        providerEventCount: root.snapshotEvents.length,
+        pendingEventCount: root.pendingEventCount,
         visibleEventCount: root.visibleEvents.length,
         gameCount: root.games.length,
         enabledGameCount: root.enabledGameCount,

@@ -33,9 +33,16 @@ a custom feed containing only plays by locally favorited players.
 
 A horizontally scrollable game strip appears across both feed surfaces. Click
 any matchup to toggle it independently; click **ALL** to hide or restore the
-entire slate. Each chip includes the score plus its live quarter and remaining
-clock (or the scheduled/final provider detail). The same selection filters the compact feed, bar count,
+entire slate. Compact two-line chips show `ARI 21–18 ATL` above the live quarter
+and remaining clock (or the scheduled/final provider detail). The same selection filters the compact feed, bar count,
 standalone feed, favorites feed, and weekly leaderboard.
+
+Newly discovered plays enter a shared live tape one at a time instead of
+appearing as an unreadable poll-sized batch. Normal arrivals land every 600 ms;
+the tape accelerates only when it is falling behind. A play involving a
+favorited player receives a green `★` spotlight and remains at the live edge for
+2.6 seconds. Scrolling away pauses auto-follow and exposes a `NEW ↑` control,
+so incoming plays cannot pull the reader away from the play they are reading.
 
 ## Requirements
 
@@ -116,8 +123,9 @@ piped safely to tools such as `jq`.
 
 The development simulator exercises the real provider boundary rather than
 injecting normalized plays into QML. It serves ESPN-shaped scoreboard, summary,
-per-play statistics, and leaderboard data over loopback HTTP. Ten games advance
-together, one new fantasy play per game on each scoreboard request. The adapter
+per-play statistics, and leaderboard data over loopback HTTP. Its deterministic
+schedule advances one to three of the ten games on most ticks, with an occasional
+five-game burst. The adapter
 still validates canonical ESPN URLs, routes them only to the explicit loopback
 origin, fetches summaries/statistics concurrently, and passes the result through
 the normal attribution, reducer, cache, service, and UI path.
@@ -145,7 +153,8 @@ curl -s http://127.0.0.1:8765/__simulator__/status | jq
 
 Use `Ctrl+C` in the server terminal and return the plugin to real data with
 `omarchy-shell tdh.fantasy-feed live`. The simulator accepts `--games`,
-`--max-plays`, and `--latency-ms` for alternate load profiles. The helper's
+`--max-plays`, `--latency-ms`, and `--all-games-per-tick` for alternate load
+profiles. The helper's
 `--provider-base-url` option rejects anything other than an HTTP loopback origin
 with an explicit port.
 
@@ -208,6 +217,13 @@ polling tightens from 15 minutes to 2 minutes to 30 seconds as kickoff nears.
 An entirely final/idle slate sleeps until the next 6:00 AM local check. Failed
 refreshes back off through 1, 2, 5, and 15 minutes. The helper retains its
 18-second watchdog and never overlaps another refresh.
+
+Provider ingestion and feed presentation are deliberately separate. Scoreboard,
+leaderboard, and cache state apply immediately, while new event revisions enter
+one shared arrival queue used by every monitor and the standalone window. The
+queue uses 600/300/160 ms normal, catch-up, and urgent pacing; a favorite arrival
+holds for 2.6 seconds. Initial loads and data-mode/week changes hydrate at once
+instead of replaying an old cache card by card.
 
 Fresh live data is written atomically to a mode-`0600` last-good cache at:
 
