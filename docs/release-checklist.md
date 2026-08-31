@@ -5,8 +5,7 @@ publication steps that require operator review.
 
 ## Automated gate
 
-- [ ] Run `python3 -m compileall -q scripts tests`.
-- [ ] Run `python3 -m unittest discover -s tests -v`.
+- [ ] Run `python3 -m compileall -q scripts`.
 - [ ] Run `python3 scripts/feed.py --fixture fixtures/replays/demo.json` and
   inspect the reception, correction/void, negative rush, interception,
   catch-fumble, and two-point events.
@@ -37,13 +36,13 @@ publication steps that require operator review.
   player once with the selected PPR/STD value, and retain lifecycle labels.
 - [ ] Confirm structured stat deltas and favorite controls remain available on
   standalone leaderboard rows.
-- [ ] With the simulator running, confirm staggered plays enter one at a time,
-  favorite plays hold with a green `★`, scrolling away shows `NEW ↑` without
-  jumping, and the button returns both feed surfaces to the live edge.
+- [ ] Confirm newly discovered plays enter one at a time, favorite plays hold
+  with a green `★`, scrolling away shows `NEW ↑` without jumping, and the
+  button returns both feed surfaces to the live edge.
 - [ ] Confirm compact game chips show matchup/score on line one and game
   status/remaining clock on line two at the smallest supported panel width.
-- [ ] Favorite simulator players and confirm the My Players rail shows weekly
-  PPR/STD totals, latest deltas, green/red pulses, and click-to-play navigation.
+- [ ] Confirm the My Players rail shows weekly PPR/STD totals, latest deltas,
+  green/red pulses, and click-to-play navigation.
 - [ ] Confirm favorite-team possession produces the amber `★ RZ` game-chip
   state and down-and-distance tooltip, then clears when possession changes.
 - [ ] Exercise `OFF`, all-play, touchdown-only, 3+, and 6+ alert presets. Confirm
@@ -68,10 +67,10 @@ publication steps that require operator review.
 
 ## Publication gate
 
-- [ ] Confirm a new competition has opened and review its current rules and
-  permitted provider use; this repository assumes no submission URL.
+- [ ] Review current marketplace or competition rules and permitted provider
+  use before submission.
 - [ ] Have the operator approve `preview.png`, repository metadata, and
   submission copy.
 - [ ] Replace the generic install URL only after the public repository exists.
 - [ ] Repeat the automated and runtime gates from a clean checkout.
-- [ ] Tag `v1.0.0` only after every release gate passes.
+- [ ] Tag the release only after every release gate passes.

@@ -1262,19 +1262,11 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     mode.add_argument("--once", action="store_true")
     parser.add_argument("--at", type=int, metavar="FRAME")
     parser.add_argument("--cache", metavar="PATH")
-    parser.add_argument("--provider-base-url", metavar="LOOPBACK_URL")
-    parser.add_argument("--reset-cache", action="store_true")
     arguments = parser.parse_args(argv)
     if arguments.at is not None and arguments.fixture is None:
         raise UsageError("--at requires --fixture")
     if arguments.cache is not None and not arguments.once:
         raise UsageError("--cache requires --once")
-    if arguments.provider_base_url is not None and not arguments.once:
-        raise UsageError("--provider-base-url requires --once")
-    if arguments.reset_cache and (
-        arguments.provider_base_url is None or arguments.cache is None
-    ):
-        raise UsageError("--reset-cache requires --provider-base-url and --cache")
     return arguments
 
 
@@ -1296,30 +1288,9 @@ def main(
         return 64
 
     if arguments.once:
-        request_json = get_json
-        if arguments.provider_base_url is not None:
-            if get_json is not None:
-                print(
-                    "feed.py: --provider-base-url cannot be combined with an injected provider",
-                    file=sys.stderr,
-                )
-                return 64
-            try:
-                request_json = espn.simulator_get_json(arguments.provider_base_url)
-            except espn.ProviderError as error:
-                print(f"feed.py: {error}", file=sys.stderr)
-                return 64
-        if arguments.reset_cache:
-            try:
-                Path(arguments.cache).unlink()
-            except FileNotFoundError:
-                pass
-            except OSError as error:
-                print(f"feed.py: unable to reset simulator cache: {error}", file=sys.stderr)
-                return 64
         snapshot, status, error = refresh_live(
             arguments.cache or default_cache_path(),
-            get_json=request_json,
+            get_json=get_json,
             observed_at=observed_at,
         )
         if snapshot is not None:

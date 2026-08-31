@@ -169,49 +169,6 @@ def default_get_json(url: str) -> Mapping[str, Any]:
     return _fetch_json(url, _response_limit(url))
 
 
-def simulator_get_json(base_url: str) -> GetJson:
-    """Route approved ESPN URLs through an explicit loopback test server."""
-    parsed_base = urllib.parse.urlsplit(base_url)
-    if (
-        parsed_base.scheme != "http"
-        or parsed_base.hostname not in {"127.0.0.1", "::1", "localhost"}
-        or parsed_base.username
-        or parsed_base.password
-        or parsed_base.query
-        or parsed_base.fragment
-        or parsed_base.path not in {"", "/"}
-    ):
-        raise ProviderError(
-            "invalid_simulator_url",
-            "simulator base URL must be a loopback HTTP origin",
-        )
-    try:
-        port = parsed_base.port
-    except ValueError as error:
-        raise ProviderError(
-            "invalid_simulator_url", "simulator base URL has an invalid port"
-        ) from error
-    if port is None:
-        raise ProviderError(
-            "invalid_simulator_url", "simulator base URL must include a port"
-        )
-    def get_json(url: str) -> Mapping[str, Any]:
-        limit = _response_limit(url)
-        parsed_target = urllib.parse.urlsplit(url)
-        routed_url = urllib.parse.urlunsplit(
-            (
-                parsed_base.scheme,
-                parsed_base.netloc,
-                parsed_target.path,
-                parsed_target.query,
-                "",
-            )
-        )
-        return _fetch_json(routed_url, limit)
-
-    return get_json
-
-
 def normalize_statistics_url(reference: Any) -> str:
     """Convert exactly one private ESPN play-statistics reference to its public host."""
     value = _string(reference, "playStatistics.$ref")

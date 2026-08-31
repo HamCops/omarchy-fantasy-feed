@@ -21,7 +21,6 @@ BarWidget {
     if (feedLoading && !feedService.snapshot) return "LOADING"
     if (feedStale) return "STALE"
     if (feedService.demoMode) return "DEMO"
-    if (feedService.simulatorMode) return "SIM"
     var state = feedService.snapshot ? String(feedService.snapshot.sourceState || "") : ""
     if (state === "live") return "LIVE"
     if (state === "scheduled") return "SCHEDULED"

@@ -1,2 +1,11 @@
 __pycache__/
 *.py[cod]
+
+# Development harnesses live on the development branch, not in the plugin tree.
+tests/
+fixtures/espn/
+fixtures/expected/
+fixtures/raw/
+fixtures/replays/malformed.json
+scripts/espn_simulator.py
+docs/screenshots/fantasy-feed-notifications.png

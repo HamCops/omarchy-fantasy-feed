@@ -4,7 +4,7 @@
 [![Omarchy plugin](https://img.shields.io/badge/Omarchy-plugin-f26d5b)](https://omarchy.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-f5f5f5)](LICENSE)
 
-![Fantasy Feed running a ten-game simulation with favorite-player notifications](preview.png)
+![Fantasy Feed running its deterministic offline demo](preview.png)
 
 Fantasy Feed is an Omarchy plugin for following NFL plays through a
 fantasy-football lens. A stable bar capsule shows feed health without resizing
@@ -148,7 +148,6 @@ omarchy-shell io.github.studioxvii.fantasy-feed status
 omarchy-shell io.github.studioxvii.fantasy-feed refresh
 omarchy-shell io.github.studioxvii.fantasy-feed demo
 omarchy-shell io.github.studioxvii.fantasy-feed live
-omarchy-shell io.github.studioxvii.fantasy-feed simulate
 omarchy-shell shell toggle io.github.studioxvii.fantasy-feed
 ```
 
@@ -165,45 +164,6 @@ python3 scripts/feed.py --fixture fixtures/replays/demo.json --at 2
 
 Normal JSON goes to stdout and diagnostics go to stderr, so the output can be
 piped safely to tools such as `jq`.
-
-### Ten-game simulator
-
-The development simulator exercises the real provider boundary rather than
-injecting normalized plays into QML. It serves ESPN-shaped scoreboard, summary,
-per-play statistics, and leaderboard data over loopback HTTP. Its deterministic
-schedule advances one to three of the ten games on most ticks, with an occasional
-five-game burst. The adapter
-still validates canonical ESPN URLs, routes them only to the explicit loopback
-origin, fetches summaries/statistics concurrently, and passes the result through
-the normal attribution, reducer, cache, service, and UI path.
-
-Start it from the repository in one terminal:
-
-```sh
-python3 scripts/espn_simulator.py
-```
-
-Then switch the installed plugin to its one-second load-test poll in another:
-
-```sh
-omarchy-shell io.github.studioxvii.fantasy-feed simulate
-omarchy-shell shell toggle io.github.studioxvii.fantasy-feed
-```
-
-The bar and headers show `SIM` while this mode is active. Calling `simulate`
-starts a fresh simulator-only cache; it never touches the real ESPN cache. View
-request count and measured peak concurrency with:
-
-```sh
-curl -s http://127.0.0.1:8765/__simulator__/status | jq
-```
-
-Use `Ctrl+C` in the server terminal and return the plugin to real data with
-`omarchy-shell io.github.studioxvii.fantasy-feed live`. The simulator accepts `--games`,
-`--max-plays`, `--latency-ms`, and `--all-games-per-tick` for alternate load
-profiles. The helper's
-`--provider-base-url` option rejects anything other than an HTTP loopback origin
-with an explicit port.
 
 ## Scoring
 
@@ -310,24 +270,20 @@ DraftKings. ESPN and DraftKings are trademarks of their respective owners.
 
 ## Develop and verify
 
-Run the offline suite and plugin validator from the repository root:
+Run the production smoke checks and plugin validator from the repository root:
 
 ```sh
-python3 -m compileall -q scripts tests
-python3 -m unittest discover -s tests -v
+python3 -m compileall -q scripts
 python3 scripts/feed.py --fixture fixtures/replays/demo.json
 omarchy plugin validate "$PWD"
 git diff --check
 ```
 
-Tests use injected responses and checked-in fixtures; they do not require the
-network. A loopback-only integration test starts the ten-game simulator on an
-ephemeral port. The suite covers scoring, weekly aggregation, position
-resolution,
-identity, fail-closed parsing, revision replacement, atomic cache recovery,
-provider boundaries, concurrent simulated games, favorites persistence,
-process ownership, and the three UI hosts. Architecture details live in
-[docs/architecture.md](docs/architecture.md).
+The submitted default branch contains only runtime files, the single offline
+demo fixture, documentation, and marketplace media. The complete development
+harness and historical load-testing tools remain available on the
+[development branch](https://github.com/studioxvii/omarchy-fantasy-feed/tree/development).
+Architecture details live in [docs/architecture.md](docs/architecture.md).
 
 ## License
 
@@ -335,7 +291,7 @@ process ownership, and the three UI hosts. Architecture details live in
 
 ## Built on revived hardware
 
-Fantasy Feed was designed, simulated, tested, and captured on an eight-year-old
+Fantasy Feed was designed, tested, and captured on an eight-year-old
 [Dell Latitude 7490](https://www.dell.com/support/product-details/en-ap/product/latitude-14-7490-laptop/resources/manuals)
 brought back to life with Omarchy. Dell's Latitude 7490 documentation dates to
 January 2018; this release was completed in August 2026.

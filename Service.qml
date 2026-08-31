@@ -74,16 +74,11 @@ Item {
   property int nextPollSeconds: 0
   property string nextPollReason: ""
   property bool demoMode: false
-  property string providerBaseUrl: ""
-  readonly property bool simulatorMode: providerBaseUrl !== ""
 
   property string _sourceDir: ""
   property string _stdout: ""
   property string _stderr: ""
   property bool _runDemoMode: false
-  property string _runProviderBaseUrl: ""
-  property bool _resetSimulatorCache: false
-  property bool _runResetSimulatorCache: false
   property bool _timedOut: false
   property bool _refreshAfterExit: false
   property bool _favoritesLoaded: false
@@ -108,14 +103,8 @@ Item {
   readonly property string configHome: String(Quickshell.env("XDG_CONFIG_HOME") || "").startsWith("/")
     ? Quickshell.env("XDG_CONFIG_HOME") : Quickshell.env("HOME") + "/.config"
   readonly property string favoritesPath: configHome + "/omarchy/fantasy-feed.json"
-  readonly property string cacheHome: String(Quickshell.env("XDG_CACHE_HOME") || "").startsWith("/")
-    ? Quickshell.env("XDG_CACHE_HOME") : Quickshell.env("HOME") + "/.cache"
-  readonly property string simulatorCachePath: cacheHome
-    + "/fantasy-feed/simulator-snapshot.json"
-  readonly property string simulatorBaseUrl: "http://127.0.0.1:8765"
 
   readonly property int livePollSeconds: 15
-  readonly property int simulatorPollSeconds: 1
   readonly property int scheduledPollSeconds: 60
   readonly property int kickoffPollSeconds: 30
   readonly property int nearKickoffPollSeconds: 120
@@ -431,7 +420,6 @@ Item {
 
   function dataModeName() {
     if (demoMode) return "demo"
-    if (simulatorMode) return "simulator"
     return "live"
   }
 
@@ -679,8 +667,6 @@ Item {
 
   function pollDecisionFor(value, failed, nowMilliseconds) {
     if (failed) return failureDecision()
-    if (simulatorMode)
-      return {seconds: simulatorPollSeconds, reason: "ten-game simulator load"}
 
     var now = Number(nowMilliseconds)
     if (!isFinite(now) || now <= 0) now = Date.now()
@@ -787,15 +773,6 @@ Item {
     var script = _sourceDir + "/scripts/feed.py"
     if (_runDemoMode)
       return ["python3", script, "--fixture", _sourceDir + "/fixtures/replays/demo.json"]
-    if (_runProviderBaseUrl !== "") {
-      var command = [
-        "python3", script, "--once",
-        "--cache", simulatorCachePath,
-        "--provider-base-url", _runProviderBaseUrl
-      ]
-      if (_runResetSimulatorCache) command.push("--reset-cache")
-      return command
-    }
     return ["python3", script, "--once"]
   }
 
@@ -811,21 +788,16 @@ Item {
     _stderr = ""
     _timedOut = false
     _runDemoMode = demoMode
-    _runProviderBaseUrl = providerBaseUrl
-    _runResetSimulatorCache = _resetSimulatorCache
-    _resetSimulatorCache = false
     loading = true
     feedProcess.command = helperCommand()
     feedProcess.running = true
     watchdog.start()
     if (_runDemoMode) return "refreshing demo feed"
-    return _runProviderBaseUrl !== ""
-      ? "refreshing simulator feed" : "refreshing live feed"
+    return "refreshing live feed"
   }
 
   function selectMode(useDemo) {
     demoMode = useDemo
-    providerBaseUrl = ""
     if (feedProcess.running) {
       _refreshAfterExit = true
       return useDemo ? "demo mode queued" : "live mode queued"
@@ -833,19 +805,8 @@ Item {
     return refresh()
   }
 
-  function selectSimulator() {
-    demoMode = false
-    providerBaseUrl = simulatorBaseUrl
-    _resetSimulatorCache = true
-    if (feedProcess.running) {
-      _refreshAfterExit = true
-      return "simulator mode queued"
-    }
-    return refresh()
-  }
-
   function modeChangedDuringRun() {
-    return _runDemoMode !== demoMode || _runProviderBaseUrl !== providerBaseUrl
+    return _runDemoMode !== demoMode
   }
 
   function initializeFromManifest() {
@@ -964,7 +925,7 @@ Item {
 
     function status(): string {
       return JSON.stringify({
-        mode: root.demoMode ? "demo" : (root.simulatorMode ? "simulator" : "live"),
+        mode: root.demoMode ? "demo" : "live",
         loading: root.loading,
         stale: root.stale,
         sourceState: root.snapshot ? root.snapshot.sourceState : "unavailable",
@@ -1000,8 +961,5 @@ Item {
       return root.selectMode(false)
     }
 
-    function simulate(): string {
-      return root.selectSimulator()
-    }
   }
 }

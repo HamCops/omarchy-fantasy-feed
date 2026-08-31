@@ -2,6 +2,13 @@
 
 All notable changes to Fantasy Feed are documented here.
 
+## [1.0.1] - 2026-08-30
+
+- Keep the submitted plugin tree production-only while retaining the small
+  deterministic fixture required by the user-facing offline Demo mode.
+- Preserve development and load-testing assets on the separate development
+  branch.
+
 ## [1.0.0] - 2026-08-30
 
 - Follow fantasy-relevant NFL plays across an arbitrary game selection.
@@ -15,7 +22,7 @@ All notable changes to Fantasy Feed are documented here.
 - Stage multi-game arrivals into a readable live tape with independent scroll
   position on every surface.
 - Add a normal tileable standalone window, adaptive polling, last-good caching,
-  correction/void handling, system-local kickoff times, and a ten-game
-  ESPN-shaped load simulator.
+  correction/void handling, and system-local kickoff times.
 
+[1.0.1]: https://github.com/studioxvii/omarchy-fantasy-feed/releases/tag/v1.0.1
 [1.0.0]: https://github.com/studioxvii/omarchy-fantasy-feed/releases/tag/v1.0.0
