@@ -28,15 +28,19 @@ BarWidget {
     return state ? state.toUpperCase() : "CONNECTING"
   }
 
+  // With a matchup synced the score is the message; the status word only
+  // earns bar space when it says something (live, stale, demo).
   function barLabel() {
-    var label = statusLabel()
+    var status = statusLabel()
     if (feedService && feedService.favoriteSpotlightActive)
-      label += " · ★ " + feedService.favoriteBarLabel()
-    else if (feedService && feedService.hasMatchup)
-      label += " · " + feedService.matchupBarLabel()
-    else if (feedService && feedService.favoriteCount > 0)
-      label += " · ★" + feedService.favoriteCount
-    return label
+      return status + " · ★ " + feedService.favoriteBarLabel()
+    if (feedService && feedService.hasMatchup) {
+      var score = feedService.matchupBarLabel()
+      return ["LIVE", "STALE", "DEMO"].indexOf(status) !== -1 ? status + " · " + score : score
+    }
+    if (feedService && feedService.favoriteCount > 0)
+      return status + " · ★" + feedService.favoriteCount
+    return status
   }
 
   function tooltip() {
