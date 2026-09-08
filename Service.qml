@@ -37,20 +37,30 @@ Item {
   }
   readonly property var latestVisibleEvent: visibleEvents.length > 0
     ? visibleEvents[visibleEvents.length - 1] : null
-  property var favorites: []
+  // The user's own favorites and league sync (espn-mcp scripts/feed_sync.py):
+  // favorites tagged side "me"/"opp" plus a league block with the scoring
+  // rules. Written from outside, so the favorites file is watched rather
+  // than read once.
+  property var userFavorites: []
+  property var userLeague: null
+  property var userLiveMatchup: null
+  // In demo mode the replay fixture supplies its own matchup so every league
+  // feature can be seen offline; otherwise the user's data is used.
+  readonly property var demoProfile: demoMode && snapshot && isObject(snapshot.demo) ? snapshot.demo : null
+  readonly property var favorites: demoProfile && Array.isArray(demoProfile.favorites)
+    ? demoProfile.favorites : userFavorites
   readonly property int favoriteCount: favorites.length
   property string scoringMode: "ppr"
   property string alertPreset: "off"
-  // League sync (espn-mcp scripts/feed_sync.py): favorites tagged side
-  // "me"/"opp" plus a league block with the scoring rules. Written from
-  // outside, so the favorites file is watched rather than read once.
-  property var league: null
+  readonly property var league: demoProfile && isObject(demoProfile.league) ? demoProfile.league : userLeague
   readonly property bool hasMatchup: league !== null && favoriteSideCount("me") > 0
   readonly property bool leagueScoring: snapshot ? snapshot.leagueScoring === true : false
   // ESPN's own live totals for the matchup, when the sync is running.
-  property var liveMatchup: null
+  readonly property var liveMatchup: demoProfile && isObject(demoProfile.liveMatchup)
+    ? demoProfile.liveMatchup : userLiveMatchup
   readonly property bool liveMatchupFresh: {
     if (!liveMatchup) return false
+    if (demoProfile) return true
     var observed = Date.parse(String(liveMatchup.observedAt || ""))
     return isFinite(observed) && (Date.now() - observed) < 30 * 60 * 1000
   }
@@ -750,9 +760,9 @@ Item {
     if (playerId === "") return false
     var next = []
     var removed = false
-    for (var index = 0; index < favorites.length; index++) {
-      if (String(favorites[index].playerId || "") === playerId) removed = true
-      else next.push(favorites[index])
+    for (var index = 0; index < userFavorites.length; index++) {
+      if (String(userFavorites[index].playerId || "") === playerId) removed = true
+      else next.push(userFavorites[index])
     }
     if (!removed) {
       next.push({
@@ -765,7 +775,7 @@ Item {
     next.sort(function(left, right) {
       return String(left.displayName).localeCompare(String(right.displayName))
     })
-    favorites = next
+    userFavorites = next
     if (_favoritesLoaded) favoritesSaveTimer.restart()
     return !removed
   }
@@ -810,18 +820,18 @@ Item {
     } catch (error) {
       console.warn("fantasy-feed: favorites parse failed:", error)
     }
-    favorites = loaded
-    league = loadedLeague
+    userFavorites = loaded
+    userLeague = loadedLeague
     _favoritesLoaded = true
   }
 
   function saveFavorites() {
     var document = {
       version: 1,
-      favorites: favorites,
+      favorites: userFavorites,
       settings: {scoringMode: scoringMode, alertPreset: alertPreset}
     }
-    if (league) document.league = league
+    if (userLeague) document.league = userLeague
     var text = JSON.stringify(document, null, 2) + "\n"
     _favoritesText = text
     favoritesFile.setText(text)
@@ -830,10 +840,10 @@ Item {
   function loadLiveMatchup(raw) {
     try {
       var parsed = raw ? JSON.parse(String(raw)) : null
-      liveMatchup = parsed && parsed.version === 1 && isObject(parsed.me)
+      userLiveMatchup = parsed && parsed.version === 1 && isObject(parsed.me)
         && isObject(parsed.opponent) ? parsed : null
     } catch (error) {
-      liveMatchup = null
+      userLiveMatchup = null
     }
   }
 
@@ -1078,7 +1088,7 @@ Item {
     watchChanges: true
     printErrors: false
     onLoaded: root.loadLiveMatchup(text())
-    onLoadFailed: root.liveMatchup = null
+    onLoadFailed: root.userLiveMatchup = null
     onFileChanged: reload()
   }
 

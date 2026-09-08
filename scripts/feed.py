@@ -11,6 +11,8 @@ import os
 import re
 import sys
 import tempfile
+import time
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence, TypeAlias
@@ -241,6 +243,44 @@ def apply_league_scoring(
                 league_hundredths(row.get("stats", []) or [], rules, exact=True)
             )
     snapshot["leagueScoring"] = rules is not None
+    return snapshot
+
+
+def apply_demo_profile(snapshot: dict[str, Any], fixture: Mapping[str, Any]) -> dict[str, Any]:
+    """Carry a fixture's `demo` block into the snapshot.
+
+    Lets the offline demo show the league features -- a matchup with both
+    sides, league scoring, live totals and highlight clips -- without any
+    league sync or network. The UI uses this profile only in demo mode.
+    """
+    demo = fixture.get("demo")
+    if not isinstance(demo, Mapping):
+        return snapshot
+    profile = {k: copy.deepcopy(demo[k]) for k in ("favorites", "league", "liveMatchup") if k in demo}
+    league = profile.get("league")
+    if isinstance(league, Mapping) and isinstance(league.get("scoring"), Mapping):
+        rules: dict[str, tuple[float, int]] = {}
+        for key, rule in league["scoring"].items():
+            if key in SCORING_TABLE and isinstance(rule, Mapping):
+                rules[str(key)] = (float(rule.get("points", 0)), max(1, int(rule.get("per", 1))))
+        apply_league_scoring(snapshot, rules or None)
+    posts = []
+    for raw in demo.get("highlightPosts") or []:
+        if not isinstance(raw, Mapping):
+            continue
+        try:
+            published = datetime.fromisoformat(
+                str(raw.get("publishedAt", "")).replace("Z", "+00:00")
+            ).timestamp()
+        except ValueError:
+            continue
+        posts.append({**dict(raw), "publishedAt": published})
+    if posts:
+        matched = highlights.match_highlights(snapshot.get("events", []), posts, time.time())
+        snapshot["highlights"] = {"source": "demo", "fetched": False, "error": "",
+                                  "matched": matched, "posts": len(posts),
+                                  "withHighlight": sum(1 for e in snapshot.get("events", []) if e.get("highlight"))}
+    snapshot["demo"] = profile
     return snapshot
 
 
@@ -1411,11 +1451,12 @@ def main(
         return status
 
     try:
-        snapshot = reduce_frames(load_fixture(arguments.fixture), at=arguments.at)
+        fixture = load_fixture(arguments.fixture)
+        snapshot = reduce_frames(fixture, at=arguments.at)
     except (FixtureError, ValueError) as error:
         print(f"feed.py: invalid fixture: {error}", file=sys.stderr)
         return 65
-    _write_snapshot(apply_league_scoring(snapshot, rules))
+    _write_snapshot(apply_demo_profile(apply_league_scoring(snapshot, rules), fixture))
     return 0
 
 
