@@ -15,6 +15,9 @@ All notable changes to Fantasy Feed are documented here.
   gains pulse red; chips show lineup slots.
 - Add a `⚔ MATCHUP` tab (key `4`) to the standalone window with both lineups.
 - Headline opponent-player alerts with `⚔ OPP`.
+- Match plays to r/nfl `[Highlight]` posts (Atom feed, throttled, cached);
+  badge them `▶ CLIP`, open in mpv on click or `Enter`/`v`, and send one
+  follow-up alert per clip for plays the alert policy covers.
 
 ## [1.0.1] - 2026-08-30
 

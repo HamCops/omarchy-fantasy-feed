@@ -183,6 +183,12 @@ Panel {
     _lastTopToken = topToken
   }
 
+  function openSelectedHighlight() {
+    if (!feedService || newestEvents.length === 0) return false
+    var index = Math.max(0, Math.min(selectedIndex, newestEvents.length - 1))
+    return feedService.openHighlight(newestEvents[index])
+  }
+
   function refreshFeed() {
     if (feedService) feedService.refresh()
   }
@@ -369,8 +375,11 @@ Panel {
       }
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      onActivateRequested: root.openSelectedHighlight()
+      onReturnRequested: root.openSelectedHighlight()
       onTextKey: function(text) {
-        if (text === "r" || text === "R") root.refreshFeed()
+        if (text === "v" || text === "V") root.openSelectedHighlight()
+        else if (text === "r" || text === "R") root.refreshFeed()
         else if (text === "d" || text === "D") root.toggleMode()
         else if (text === "o" || text === "O") root.popOut()
         else if (text === "p" || text === "P")
@@ -622,6 +631,8 @@ Panel {
             readonly property var fantasyEvent: modelData
             readonly property bool favoriteSpotlight: root.feedService
               ? root.feedService.isSpotlightEvent(fantasyEvent) : false
+            readonly property var highlight: root.feedService
+              ? root.feedService.eventHighlight(fantasyEvent) : null
 
             width: ListView.view.width
             height: eventColumn.implicitHeight + Style.space(12)
@@ -645,6 +656,11 @@ Panel {
                 root.cursorActive = true
                 root.selectedIndex = eventCard.index
               }
+            }
+
+            TapHandler {
+              enabled: eventCard.highlight !== null
+              onTapped: if (root.feedService) root.feedService.openHighlight(eventCard.fantasyEvent)
             }
 
             Column {
@@ -676,7 +692,8 @@ Panel {
                 Text {
                   id: lifecycleLabel
                   anchors.right: parent.right
-                  text: (eventCard.favoriteSpotlight ? "★ " : "")
+                  text: (eventCard.highlight ? "▶ CLIP " + root.feedService.highlightAge(eventCard.fantasyEvent) + " · " : "")
+                    + (eventCard.favoriteSpotlight ? "★ " : "")
                     + root.lifecycle(eventCard.fantasyEvent)
                   color: eventCard.fantasyEvent.lifecycle === "voided"
                     ? root.contentUrgent
@@ -714,7 +731,7 @@ Panel {
         Text {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "p PPR/STD · o pop out · j/k select · r refresh · d demo/live · Esc close"
+          text: "p scoring · o pop out · j/k select · Enter/v play clip · r refresh · d demo/live · Esc close"
           color: Qt.darker(root.contentForeground, 1.55)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption

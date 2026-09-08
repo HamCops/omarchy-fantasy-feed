@@ -47,6 +47,25 @@ With a league synced:
 Without a sync nothing changes: PPR/STD, favorites and alerts behave as
 upstream.
 
+## Highlight clips
+
+Plays get a `▶ CLIP 2m` badge when a matching `[Highlight]` post appears on
+r/nfl -- usually one to three minutes after the play, well ahead of ESPN's
+own clips. Click the play (or press `Enter`/`v` on the selected play in the
+compact panel) to open it in `mpv`; `yt-dlp` resolves streamable, x.com,
+YouTube and v.redd.it links. With alerts on, a clip for a play that would
+have alerted sends one follow-up notification whose click opens the video.
+
+Matching is by participant name and time window (a clip must follow the
+play), with touchdown plays preferring titles that say so. It is a best
+guess, not a proof; a miss costs a wrong video, never wrong points.
+
+Reddit's JSON API refuses non-browser clients, so `scripts/highlights.py`
+reads the subreddit's public Atom feed: at most one read every 45 seconds,
+only while games are live or recent plays are still unmatched, with a
+five-minute backoff on any refusal. Posts are cached for eight hours in
+`~/.cache/fantasy-feed/highlights.json`. A feed failure never fails a refresh.
+
 [![CI](https://github.com/studioxvii/omarchy-fantasy-feed/actions/workflows/ci.yml/badge.svg)](https://github.com/studioxvii/omarchy-fantasy-feed/actions/workflows/ci.yml)
 [![Omarchy plugin](https://img.shields.io/badge/Omarchy-plugin-f26d5b)](https://omarchy.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-f5f5f5)](LICENSE)

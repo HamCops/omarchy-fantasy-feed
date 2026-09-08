@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence, TypeAlias
 
 import espn
+import highlights
 
 
 SCHEMA_VERSION = 1
@@ -1401,7 +1402,10 @@ def main(
             observed_at=observed_at,
         )
         if snapshot is not None:
-            _write_snapshot(apply_league_scoring(snapshot, rules))
+            apply_league_scoring(snapshot, rules)
+            # Clips from r/nfl. Throttled and best-effort; see highlights.py.
+            highlights.attach(snapshot)
+            _write_snapshot(snapshot)
         elif error is not None:
             print(f"feed.py: live refresh failed: {error['message']}", file=sys.stderr)
         return status
