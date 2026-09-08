@@ -59,10 +59,9 @@ Item {
       }
       if (belongsToSelectedGame) filtered.push(row)
     }
-    var mode = scoringMode
     filtered.sort(function(left, right) {
-      var leftPoints = Number(left && left.points ? left.points[mode] : 0)
-      var rightPoints = Number(right && right.points ? right.points[mode] : 0)
+      var leftPoints = pointsIn(left ? left.points : null)
+      var rightPoints = pointsIn(right ? right.points : null)
       if (rightPoints !== leftPoints) return rightPoints - leftPoints
       return String(left.displayName || "").localeCompare(String(right.displayName || ""))
     })
@@ -74,7 +73,7 @@ Item {
     if (payloadJson) {
       try {
         var payload = JSON.parse(String(payloadJson))
-        if (payload && ["feed", "leaders", "favorites"].indexOf(payload.tab) !== -1)
+        if (payload && ["feed", "leaders", "favorites", "matchup"].indexOf(payload.tab) !== -1)
           activeTab = payload.tab
         if (payload && (payload.playerId || payload.eventToken)) {
           var playerId = String(payload.playerId || "")
@@ -206,7 +205,38 @@ Item {
   }
 
   function scoringLabel() {
-    return scoringMode === "ppr" ? "PPR" : "STD"
+    if (scoringMode === "ppr") return "PPR"
+    if (scoringMode === "league") return "LG"
+    return "STD"
+  }
+
+  function pointsIn(points) {
+    return service ? service.pointsIn(points) : 0
+  }
+
+  readonly property bool hasMatchup: service ? service.hasMatchup === true : false
+  readonly property var liveMatchup: service && service.liveMatchupFresh ? service.liveMatchup : null
+
+  function sideRows(side) {
+    var rows = service && Array.isArray(service.favoritePlayerRows) ? service.favoritePlayerRows : []
+    var filtered = []
+    for (var index = 0; index < rows.length; index++) {
+      if (String(rows[index].side || "") === side) filtered.push(rows[index])
+    }
+    return filtered
+  }
+
+  function sideName(side) {
+    var league = service ? service.league : null
+    if (!league) return side === "opp" ? "OPPONENT" : "ME"
+    var team = side === "opp" ? league.opponent : league.me
+    return team && team.name ? String(team.name).toUpperCase() : (side === "opp" ? "OPPONENT" : "ME")
+  }
+
+  function sideTotal(side) {
+    var totals = service && service.matchupTotals ? service.matchupTotals : null
+    if (!totals) return 0
+    return Number(side === "opp" ? totals.opp : totals.me) || 0
   }
 
   function statLabels(stats) {
@@ -253,7 +283,7 @@ Item {
       var participant = participants[index]
       var match = playerNameMatch(raw, participant ? participant.displayName : "")
       if (!match) continue
-      var points = participant && participant.points ? participant.points[scoringMode] : 0
+      var points = pointsIn(participant ? participant.points : null)
       annotations.push({start: match.index, end: match.index + match[0].length, points: points})
     }
     annotations.sort(function(left, right) { return left.start - right.start })
@@ -323,6 +353,8 @@ Item {
           root.activeTab = "leaders"; event.accepted = true
         } else if (event.key === Qt.Key_3) {
           root.activeTab = "favorites"; event.accepted = true
+        } else if (event.key === Qt.Key_4) {
+          root.activeTab = "matchup"; event.accepted = true
         } else if (event.key === Qt.Key_P) {
           if (root.service) root.service.toggleScoringMode()
           event.accepted = true
@@ -387,10 +419,16 @@ Item {
               id: scoringDropdown
               width: Style.space(86)
               showLabel: false
-              options: [
-                {value: "ppr", label: "PPR"},
-                {value: "standard", label: "STD"}
-              ]
+              options: root.service && root.service.league
+                ? [
+                  {value: "league", label: "LEAGUE"},
+                  {value: "ppr", label: "PPR"},
+                  {value: "standard", label: "STD"}
+                ]
+                : [
+                  {value: "ppr", label: "PPR"},
+                  {value: "standard", label: "STD"}
+                ]
               value: root.scoringMode
               foreground: root.foreground
               fontFamily: root.fontFamily
@@ -425,7 +463,8 @@ Item {
             model: [
               {key: "feed", label: "FEED"},
               {key: "leaders", label: "LEADERBOARD"},
-              {key: "favorites", label: "★ FAVORITES"}
+              {key: "favorites", label: "★ FAVORITES"},
+              {key: "matchup", label: "⚔ MATCHUP"}
             ]
             delegate: Button {
               required property var modelData
@@ -512,7 +551,8 @@ Item {
 
           Text {
             anchors.centerIn: parent
-            visible: root.activeTab !== "leaders" && root.displayedEvents.length === 0
+            visible: root.activeTab !== "leaders" && root.activeTab !== "matchup"
+              && root.displayedEvents.length === 0
             width: parent.width - Style.space(40)
             horizontalAlignment: Text.AlignHCenter
             text: root.activeTab === "favorites"
@@ -532,7 +572,8 @@ Item {
           ListView {
             id: feedList
             anchors.fill: parent
-            visible: root.activeTab !== "leaders" && root.displayedEvents.length > 0
+            visible: root.activeTab !== "leaders" && root.activeTab !== "matchup"
+              && root.displayedEvents.length > 0
             spacing: Style.space(4)
             clip: true
             boundsBehavior: Flickable.StopAtBounds
@@ -632,7 +673,7 @@ Item {
             anchors.right: parent.right
             anchors.margins: Style.space(8)
             z: 3
-            visible: root.activeTab !== "leaders"
+            visible: root.activeTab !== "leaders" && root.activeTab !== "matchup"
               && !root.followNewest && root.unseenArrivals > 0
             text: String(root.unseenArrivals) + " NEW ↑"
             tooltipText: "Return to the live edge"
@@ -641,6 +682,203 @@ Item {
             fontSize: Style.font.caption
             bordered: true
             onClicked: root.followLiveTape()
+          }
+
+          Text {
+            anchors.centerIn: parent
+            visible: root.activeTab === "matchup" && !root.hasMatchup
+            width: parent.width - Style.space(40)
+            horizontalAlignment: Text.AlignHCenter
+            text: "No league matchup synced.\nRun espn-mcp's scripts/feed_sync.py to load this week's lineups."
+            color: Qt.darker(root.foreground, 1.35)
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            wrapMode: Text.WordWrap
+          }
+
+          Column {
+            id: matchupView
+            anchors.fill: parent
+            visible: root.activeTab === "matchup" && root.hasMatchup
+            spacing: Style.space(8)
+
+            Item {
+              id: matchupHeader
+              width: parent.width
+              height: matchupTotals.implicitHeight + Style.space(6)
+
+              Row {
+                id: matchupTotals
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(18)
+
+                Column {
+                  spacing: Style.space(2)
+                  Text {
+                    anchors.right: parent.right
+                    text: root.sideName("me")
+                    color: Qt.darker(root.foreground, 1.3)
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+                  Text {
+                    anchors.right: parent.right
+                    text: root.sideTotal("me").toFixed(1)
+                    color: root.sideTotal("me") >= root.sideTotal("opp") ? root.positivePoints : root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.title
+                    font.bold: true
+                  }
+                }
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: root.scoringLabel()
+                  color: Qt.darker(root.foreground, 1.45)
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+                Column {
+                  spacing: Style.space(2)
+                  Text {
+                    text: root.sideName("opp")
+                    color: Qt.darker(root.foreground, 1.3)
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                  }
+                  Text {
+                    text: root.sideTotal("opp").toFixed(1)
+                    color: root.sideTotal("opp") > root.sideTotal("me") ? root.negativePoints : root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.title
+                    font.bold: true
+                  }
+                }
+              }
+            }
+
+            Text {
+              width: parent.width
+              horizontalAlignment: Text.AlignHCenter
+              visible: root.liveMatchup !== null
+              text: root.liveMatchup
+                ? "ESPN " + Number(root.liveMatchup.me.points).toFixed(1) + " – "
+                  + Number(root.liveMatchup.opponent.points).toFixed(1)
+                  + " · PROJECTED " + Number(root.liveMatchup.me.projected).toFixed(1) + " – "
+                  + Number(root.liveMatchup.opponent.projected).toFixed(1)
+                  + (root.liveMatchup.winProbability !== null && root.liveMatchup.winProbability !== undefined
+                    ? " · WIN " + Math.round(Number(root.liveMatchup.winProbability) * 100) + "%" : "")
+                  + " · INCLUDES K + D/ST"
+                : ""
+              color: Qt.darker(root.foreground, 1.35)
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+            }
+
+            Row {
+              id: matchupColumns
+              width: parent.width
+              height: parent.height - y
+              spacing: Style.space(12)
+
+              Repeater {
+                model: ["me", "opp"]
+
+                delegate: ListView {
+                  id: sideList
+                  required property string modelData
+                  readonly property string side: modelData
+                  readonly property bool opponent: side === "opp"
+                  width: (matchupColumns.width - matchupColumns.spacing) / 2
+                  height: matchupColumns.height
+                  spacing: Style.space(4)
+                  clip: true
+                  boundsBehavior: Flickable.StopAtBounds
+                  model: root.sideRows(side)
+                  ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                  delegate: Rectangle {
+                    id: matchupRow
+                    required property var modelData
+                    readonly property var player: modelData
+                    readonly property real weeklyPoints: root.pointsIn(player.points)
+                    readonly property real latestPoints: root.pointsIn(player.latestPoints)
+                    readonly property color sideColor: sideList.opponent ? root.negativePoints : root.positivePoints
+                    width: ListView.view.width
+                    height: Style.space(44)
+                    radius: Style.cornerRadius
+                    color: player.spotlight
+                      ? Qt.rgba(sideColor.r, sideColor.g, sideColor.b, 0.12)
+                      : (player.redZone ? Qt.rgba(1, 0.55, 0.2, 0.08)
+                        : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04))
+                    border.width: player.spotlight ? 2 : 0
+                    border.color: sideColor
+
+                    TapHandler {
+                      onTapped: root.jumpToFavoritePlay(
+                        String(matchupRow.player.playerId || ""),
+                        String(matchupRow.player.latestEventToken || ""))
+                    }
+
+                    Text {
+                      id: slotText
+                      anchors.left: parent.left
+                      anchors.leftMargin: Style.space(8)
+                      anchors.verticalCenter: parent.verticalCenter
+                      width: Style.space(44)
+                      text: String(matchupRow.player.slot || matchupRow.player.position || "")
+                      color: sideList.opponent ? root.negativePoints : Color.accent
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                    }
+                    Column {
+                      anchors.left: slotText.right
+                      anchors.leftMargin: Style.space(4)
+                      anchors.right: matchupPoints.left
+                      anchors.rightMargin: Style.space(8)
+                      anchors.verticalCenter: parent.verticalCenter
+                      spacing: Style.space(1)
+                      Text {
+                        width: parent.width
+                        text: String(matchupRow.player.displayName || "Unknown player").toUpperCase()
+                        color: root.foreground
+                        font.family: root.fontFamily
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                        elide: Text.ElideRight
+                      }
+                      Text {
+                        width: parent.width
+                        text: String(matchupRow.player.team || "")
+                          + (matchupRow.player.redZone ? " · RED ZONE " + String(matchupRow.player.redZoneDetail || "") : "")
+                          + (matchupRow.player.latestEvent ? " · last " + root.signedPoints(matchupRow.latestPoints) : "")
+                        color: matchupRow.player.redZone ? "#ffb347" : Qt.darker(root.foreground, 1.35)
+                        font.family: root.fontFamily
+                        font.pixelSize: Style.font.caption
+                        elide: Text.ElideRight
+                      }
+                    }
+                    Text {
+                      id: matchupPoints
+                      anchors.right: parent.right
+                      anchors.rightMargin: Style.space(10)
+                      anchors.verticalCenter: parent.verticalCenter
+                      text: matchupRow.weeklyPoints.toFixed(1)
+                      color: matchupRow.weeklyPoints === 0
+                        ? Qt.darker(root.foreground, 1.35)
+                        : (sideList.opponent ? root.negativePoints : root.positivePoints)
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.body
+                      font.bold: true
+                    }
+                  }
+                }
+              }
+            }
           }
 
           Text {
@@ -669,7 +907,7 @@ Item {
               required property var modelData
               required property int index
               readonly property var player: modelData
-              readonly property real selectedPoints: Number(player.points ? player.points[root.scoringMode] : 0)
+              readonly property real selectedPoints: root.pointsIn(player.points)
               width: ListView.view.width
               height: Style.space(48)
               color: index % 2 === 0
@@ -753,7 +991,7 @@ Item {
           id: footer
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "Click games to filter · / search players · 1 feed · 2 leaderboard · 3 favorites · p scoring · r refresh · Esc close"
+          text: "Click games to filter · / search players · 1 feed · 2 leaderboard · 3 favorites · 4 matchup · p scoring · r refresh · Esc close"
           color: Qt.darker(root.foreground, 1.55)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

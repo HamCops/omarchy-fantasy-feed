@@ -41,6 +41,21 @@ Item {
   readonly property int favoriteCount: favorites.length
   property string scoringMode: "ppr"
   property string alertPreset: "off"
+  // League sync (espn-mcp scripts/feed_sync.py): favorites tagged side
+  // "me"/"opp" plus a league block with the scoring rules. Written from
+  // outside, so the favorites file is watched rather than read once.
+  property var league: null
+  readonly property bool hasMatchup: league !== null && favoriteSideCount("me") > 0
+  readonly property bool leagueScoring: snapshot ? snapshot.leagueScoring === true : false
+  // ESPN's own live totals for the matchup, when the sync is running.
+  property var liveMatchup: null
+  readonly property bool liveMatchupFresh: {
+    if (!liveMatchup) return false
+    var observed = Date.parse(String(liveMatchup.observedAt || ""))
+    return isFinite(observed) && (Date.now() - observed) < 30 * 60 * 1000
+  }
+  readonly property var matchupTotals: buildMatchupTotals()
+  property string _favoritesText: ""
   readonly property var favoriteEvents: {
     var filtered = []
     var sourceEvents = events
@@ -103,6 +118,9 @@ Item {
   readonly property string configHome: String(Quickshell.env("XDG_CONFIG_HOME") || "").startsWith("/")
     ? Quickshell.env("XDG_CONFIG_HOME") : Quickshell.env("HOME") + "/.config"
   readonly property string favoritesPath: configHome + "/omarchy/fantasy-feed.json"
+  readonly property string cacheHome: String(Quickshell.env("XDG_CACHE_HOME") || "").startsWith("/")
+    ? Quickshell.env("XDG_CACHE_HOME") : Quickshell.env("HOME") + "/.cache"
+  readonly property string liveMatchupPath: cacheHome + "/fantasy-feed/league.json"
 
   readonly property int livePollSeconds: 15
   readonly property int scheduledPollSeconds: 60
@@ -168,6 +186,70 @@ Item {
       if (String(favorites[index].playerId || "") === id) return true
     }
     return false
+  }
+
+  function favoriteSide(playerId) {
+    var id = String(playerId || "")
+    for (var index = 0; index < favorites.length; index++) {
+      if (String(favorites[index].playerId || "") === id)
+        return String(favorites[index].side || "")
+    }
+    return ""
+  }
+
+  function favoriteSideCount(side) {
+    var count = 0
+    for (var index = 0; index < favorites.length; index++) {
+      if (String(favorites[index].side || "") === side) count += 1
+    }
+    return count
+  }
+
+  function scoringLabel() {
+    if (scoringMode === "ppr") return "PPR"
+    if (scoringMode === "league") return "LG"
+    return "STD"
+  }
+
+  function pointsIn(points) {
+    if (!points || typeof points !== "object") return 0
+    var value = points[scoringMode]
+    if (value === undefined || value === null) value = points.standard
+    var number = Number(value)
+    return isFinite(number) ? number : 0
+  }
+
+  function buildMatchupTotals() {
+    var mine = 0
+    var theirs = 0
+    var rows = favoritePlayerRows
+    for (var index = 0; index < rows.length; index++) {
+      var value = pointsIn(rows[index].points)
+      if (rows[index].side === "opp") theirs += value
+      else if (rows[index].side === "me") mine += value
+    }
+    return {me: Math.round(mine * 100) / 100, opp: Math.round(theirs * 100) / 100}
+  }
+
+  function formatTotal(value) {
+    var number = Number(value)
+    if (!isFinite(number)) number = 0
+    return number.toFixed(1)
+  }
+
+  // The bar's matchup line. ESPN's live totals win when the sync is running
+  // and current: they include kickers and defenses, which plays cannot score.
+  function matchupBarLabel() {
+    if (!hasMatchup) return ""
+    var opponent = league && league.opponent ? String(league.opponent.abbrev || "OPP") : "OPP"
+    if (liveMatchupFresh && liveMatchup.me && liveMatchup.opponent) {
+      var me = Number(liveMatchup.me.points) || 0
+      var them = Number(liveMatchup.opponent.points) || 0
+      if (me > 0 || them > 0 || String(liveMatchup.status || "") !== "UNDECIDED")
+        return "ME " + formatTotal(me) + " – " + formatTotal(them) + " " + opponent
+    }
+    var totals = matchupTotals
+    return "ME " + formatTotal(totals.me) + " – " + formatTotal(totals.opp) + " " + opponent
   }
 
   function isFavoriteTeam(team) {
@@ -242,6 +324,8 @@ Item {
 
       rows.push({
         playerId: playerId,
+        side: String(favorite.side || ""),
+        slot: String(favorite.slot || ""),
         displayName: String(leader && leader.displayName
           ? leader.displayName : favorite.displayName || "Unknown player"),
         team: team,
@@ -260,11 +344,18 @@ Item {
         redZoneDetail: redZoneGame ? String(redZoneGame.downDistance || "") : ""
       })
     }
+    var sideOrder = {me: 0, "": 1, opp: 2}
+    rows.sort(function(left, right) {
+      var order = (sideOrder[left.side] || 0) - (sideOrder[right.side] || 0)
+      return order !== 0 ? order : 0
+    })
     return rows
   }
 
   function normalizedScoringMode(value) {
-    return String(value || "") === "standard" ? "standard" : "ppr"
+    var mode = String(value || "")
+    if (mode === "standard" || mode === "league") return mode
+    return "ppr"
   }
 
   function setScoringMode(value) {
@@ -276,7 +367,9 @@ Item {
   }
 
   function toggleScoringMode() {
-    return setScoringMode(scoringMode === "ppr" ? "standard" : "ppr")
+    if (scoringMode === "ppr") return setScoringMode("standard")
+    if (scoringMode === "standard" && league) return setScoringMode("league")
+    return setScoringMode("ppr")
   }
 
   function validAlertPreset(value) {
@@ -325,8 +418,9 @@ Item {
     var matches = favoriteParticipants(favoriteSpotlightEvent)
     if (matches.length === 0) return "PLAY"
     var participant = matches[0]
-    var points = participant.points ? participant.points[scoringMode] : 0
+    var points = pointsIn(participant.points)
     var label = shortPlayerName(participant.displayName) + " " + signedPoints(points)
+    if (favoriteSide(participant.playerId) === "opp") label = "OPP " + label
     return matches.length > 1 ? label + " +" + (matches.length - 1) : label
   }
 
@@ -355,8 +449,8 @@ Item {
     if (alertPreset === "touchdowns") return eventIsTouchdown(event)
     var threshold = alertThreshold()
     for (var index = 0; index < matches.length; index++) {
-      var points = matches[index].points ? Number(matches[index].points[scoringMode]) : 0
-      if (isFinite(points) && points >= threshold) return true
+      var points = pointsIn(matches[index].points)
+      if (points >= threshold) return true
     }
     return false
   }
@@ -367,12 +461,12 @@ Item {
     var labels = []
     for (var index = 0; index < matches.length && index < 2; index++) {
       var participant = matches[index]
-      var points = participant.points ? participant.points[scoringMode] : 0
+      var points = pointsIn(participant.points)
       labels.push(shortPlayerName(participant.displayName) + " " + signedPoints(points))
     }
     if (matches.length > 2) labels.push("+" + (matches.length - 2) + " more")
-    var headline = "★ " + labels.join(" · ") + " "
-      + (scoringMode === "ppr" ? "PPR" : "STD")
+    var opponentPlay = favoriteSide(matches[0].playerId) === "opp"
+    var headline = (opponentPlay ? "⚔ OPP " : "★ ") + labels.join(" · ") + " " + scoringLabel()
     var payload = JSON.stringify({
       tab: "favorites",
       playerId: String(matches[0].playerId || ""),
@@ -603,14 +697,22 @@ Item {
   }
 
   function loadFavorites(raw) {
-    if (_favoritesLoaded) return
+    // Re-entered on every external write (the league sync); our own saves
+    // round-trip through the same file and are recognised by their text.
+    var text = String(raw || "")
+    if (_favoritesLoaded && text === _favoritesText) return
+    _favoritesText = text
     var loaded = []
+    var loadedLeague = null
     try {
-      var parsed = raw ? JSON.parse(String(raw)) : null
+      var parsed = text ? JSON.parse(text) : null
       var values = parsed && parsed.version === 1 && Array.isArray(parsed.favorites)
         ? parsed.favorites : []
       var settings = parsed && parsed.version === 1 && isObject(parsed.settings)
         ? parsed.settings : ({})
+      if (parsed && parsed.version === 1 && isObject(parsed.league)
+          && isObject(parsed.league.scoring))
+        loadedLeague = parsed.league
       scoringMode = normalizedScoringMode(settings.scoringMode)
       alertPreset = validAlertPreset(settings.alertPreset)
         ? String(settings.alertPreset) : "off"
@@ -621,26 +723,44 @@ Item {
         var playerId = String(item.playerId || "")
         if (playerId === "" || seen[playerId]) continue
         seen[playerId] = true
+        var side = String(item.side || "")
         loaded.push({
           playerId: playerId,
           displayName: String(item.displayName || "Unknown player"),
           team: String(item.team || ""),
-          position: String(item.position || "")
+          position: String(item.position || ""),
+          side: side === "me" || side === "opp" ? side : "",
+          slot: String(item.slot || "")
         })
       }
     } catch (error) {
       console.warn("fantasy-feed: favorites parse failed:", error)
     }
     favorites = loaded
+    league = loadedLeague
     _favoritesLoaded = true
   }
 
   function saveFavorites() {
-    favoritesFile.setText(JSON.stringify({
+    var document = {
       version: 1,
       favorites: favorites,
       settings: {scoringMode: scoringMode, alertPreset: alertPreset}
-    }, null, 2) + "\n")
+    }
+    if (league) document.league = league
+    var text = JSON.stringify(document, null, 2) + "\n"
+    _favoritesText = text
+    favoritesFile.setText(text)
+  }
+
+  function loadLiveMatchup(raw) {
+    try {
+      var parsed = raw ? JSON.parse(String(raw)) : null
+      liveMatchup = parsed && parsed.version === 1 && isObject(parsed.me)
+        && isObject(parsed.opponent) ? parsed : null
+    } catch (error) {
+      liveMatchup = null
+    }
   }
 
   function gameState(game) {
@@ -869,11 +989,22 @@ Item {
   FileView {
     id: favoritesFile
     path: root.favoritesPath
-    watchChanges: false
+    watchChanges: true
     atomicWrites: true
     printErrors: false
     onLoaded: root.loadFavorites(text())
     onLoadFailed: root.loadFavorites("")
+    onFileChanged: reload()
+  }
+
+  FileView {
+    id: liveMatchupFile
+    path: root.liveMatchupPath
+    watchChanges: true
+    printErrors: false
+    onLoaded: root.loadLiveMatchup(text())
+    onLoadFailed: root.liveMatchup = null
+    onFileChanged: reload()
   }
 
   Process {
@@ -941,6 +1072,8 @@ Item {
         favoriteRedZoneGameCount: root.favoriteRedZoneGameCount,
         scoringMode: root.scoringMode,
         alertPreset: root.alertPreset,
+        matchup: root.hasMatchup ? root.matchupBarLabel() : "",
+        liveMatchupFresh: root.liveMatchupFresh,
         lastUpdated: root.lastUpdated,
         lastError: root.lastError,
         nextPollSeconds: root.nextPollSeconds,

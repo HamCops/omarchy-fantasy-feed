@@ -2,6 +2,20 @@
 
 All notable changes to Fantasy Feed are documented here.
 
+## [1.1.0] - 2026-09-08 (HamCops fork)
+
+- Watch the favorites file so an external league sync applies live, and keep
+  the `side`, `slot` and `league` fields it writes.
+- Add league scoring: `points.league` on every play and weekly total, from the
+  synced rules, with ESPN's floor-bucket yardage honoured in weekly totals.
+- Add a `LEAGUE` scoring mode to both scoring menus and the `p` cycle.
+- Show the head-to-head in the bar (`ME 41.2 – 37.9 TM2`), preferring ESPN's
+  live totals from `~/.cache/fantasy-feed/league.json` when fresh.
+- Split the My Players rail into my starters and the opponent's; opponent
+  gains pulse red; chips show lineup slots.
+- Add a `⚔ MATCHUP` tab (key `4`) to the standalone window with both lineups.
+- Headline opponent-player alerts with `⚔ OPP`.
+
 ## [1.0.1] - 2026-08-30
 
 - Keep the submitted plugin tree production-only while retaining the small

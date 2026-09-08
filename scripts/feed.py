@@ -41,6 +41,9 @@ SCORING_TABLE: Mapping[str, tuple[int, int]] = {
 }
 
 
+LEAGUE_POINTS_KEY = "league"
+
+
 class FixtureError(ValueError):
     """The fixture cannot be interpreted without guessing."""
 
@@ -136,6 +139,108 @@ def score_stats(stats: Iterable[StatDelta]) -> tuple[int, int]:
         ppr += ppr_rate * stat.value
         standard += standard_rate * stat.value
     return ppr, standard
+
+
+# --- League scoring ---------------------------------------------------------
+#
+# A league sync (espn-mcp scripts/feed_sync.py) writes the league's own rules
+# into the favorites file as `league.scoring`, keyed by the same stat names as
+# SCORING_TABLE: {"passing_yards": {"points": 1, "per": 25}, ...}. `per` > 1
+# means ESPN's bucket form -- one point per *complete* 25 (or 10) yards, floor
+# -- which is how many leagues actually score and why the fixed 0.04-per-yard
+# table never matches ESPN's number. Weekly totals use the exact floor; a
+# single play's delta is scored linearly (a 7-yard run is 0.7, not 0), since
+# the bucket only resolves against the cumulative game total.
+
+
+def default_config_path() -> Path:
+    config_home = os.environ.get("XDG_CONFIG_HOME")
+    if config_home and Path(config_home).is_absolute():
+        base = Path(config_home)
+    else:
+        base = Path.home() / ".config"
+    return base / "omarchy" / "fantasy-feed.json"
+
+
+def load_league_scoring(path: str | Path | None = None) -> dict[str, tuple[float, int]] | None:
+    """The league's rules, or None when no sync has written any."""
+    try:
+        with Path(path or default_config_path()).open("r", encoding="utf-8") as stream:
+            value = json.load(stream)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    league = value.get("league") if isinstance(value, Mapping) else None
+    scoring = league.get("scoring") if isinstance(league, Mapping) else None
+    if not isinstance(scoring, Mapping):
+        return None
+    rules: dict[str, tuple[float, int]] = {}
+    for key, rule in scoring.items():
+        if key not in SCORING_TABLE or not isinstance(rule, Mapping):
+            continue
+        try:
+            points = float(rule.get("points", 0))
+            per = int(rule.get("per", 1))
+        except (TypeError, ValueError):
+            continue
+        if per < 1:
+            per = 1
+        rules[str(key)] = (points, per)
+    return rules or None
+
+
+def league_hundredths(
+    stats: Iterable[Mapping[str, Any]], rules: Mapping[str, tuple[float, int]], *, exact: bool
+) -> int:
+    total = 0.0
+    for stat in stats:
+        rule = rules.get(str(stat.get("key", "")))
+        if rule is None:
+            continue
+        points, per = rule
+        try:
+            value = int(stat.get("value", 0))
+        except (TypeError, ValueError):
+            continue
+        if per > 1:
+            units = int(value / per) if exact else value / per
+        else:
+            units = value
+        total += units * points
+    return round(total * 100)
+
+
+def apply_league_scoring(
+    snapshot: dict[str, Any], rules: Mapping[str, tuple[float, int]] | None
+) -> dict[str, Any]:
+    """Add points.league to every event participant and leaderboard row.
+
+    Without league rules, league points mirror standard so the UI's "league"
+    scoring mode always has a value. Recomputed on every output, so a rules
+    change applies to cached events too.
+    """
+    for event in snapshot.get("events", []):
+        for participant in event.get("participants", []) or []:
+            points = participant.get("points")
+            if not isinstance(points, dict):
+                continue
+            if rules is None:
+                points[LEAGUE_POINTS_KEY] = points.get("standard", 0)
+            else:
+                points[LEAGUE_POINTS_KEY] = _points(
+                    league_hundredths(participant.get("stats", []) or [], rules, exact=False)
+                )
+    for row in snapshot.get("leaderboard", []):
+        points = row.get("points")
+        if not isinstance(points, dict):
+            continue
+        if rules is None:
+            points[LEAGUE_POINTS_KEY] = points.get("standard", 0)
+        else:
+            points[LEAGUE_POINTS_KEY] = _points(
+                league_hundredths(row.get("stats", []) or [], rules, exact=True)
+            )
+    snapshot["leagueScoring"] = rules is not None
+    return snapshot
 
 
 def _player(
@@ -1287,6 +1392,8 @@ def main(
         print(f"feed.py: {error}", file=sys.stderr)
         return 64
 
+    rules = load_league_scoring()
+
     if arguments.once:
         snapshot, status, error = refresh_live(
             arguments.cache or default_cache_path(),
@@ -1294,7 +1401,7 @@ def main(
             observed_at=observed_at,
         )
         if snapshot is not None:
-            _write_snapshot(snapshot)
+            _write_snapshot(apply_league_scoring(snapshot, rules))
         elif error is not None:
             print(f"feed.py: live refresh failed: {error['message']}", file=sys.stderr)
         return status
@@ -1304,7 +1411,7 @@ def main(
     except (FixtureError, ValueError) as error:
         print(f"feed.py: invalid fixture: {error}", file=sys.stderr)
         return 65
-    _write_snapshot(snapshot)
+    _write_snapshot(apply_league_scoring(snapshot, rules))
     return 0
 
 
