@@ -526,8 +526,9 @@ Item {
     var command = ["mpv", "--force-window=immediate", "--really-quiet", "--keep-open=yes",
       "--title=Fantasy Feed · " + String(highlight.title || "highlight")]
     // A direct HLS playlist (Reddit-hosted video) needs no yt-dlp; everything
-    // else (streamable, x.com, YouTube) is resolved through it.
-    if (url.indexOf(".m3u8") !== -1) command.push("--no-ytdl")
+    // else (streamable, x.com, YouTube) is resolved through it. Decide by
+    // host, not by ".m3u8" appearing somewhere in the URL.
+    if (/^https:\/\/v\.redd\.it\/[A-Za-z0-9]+\/HLSPlaylist\.m3u8$/.test(url)) command.push("--no-ytdl")
     else command.push("--ytdl-format=bestvideo[height<=1080]+bestaudio/best")
     command.push(url)
     return command
