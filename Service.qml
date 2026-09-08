@@ -153,10 +153,13 @@ Item {
     return text.length > 240 ? text.substring(0, 237) + "…" : text
   }
 
+  // Omarchy 4.0.3 stops exposing manifest.__sourceDir to third-party
+  // plugins, so locate the helper relative to this file instead; the
+  // manifest value is only used when the shell still provides it.
   function sourceDirectory() {
-    if (!manifest || manifest.__sourceDir === undefined || manifest.__sourceDir === null)
-      return ""
-    return String(manifest.__sourceDir).replace(/\/+$/, "")
+    if (manifest && manifest.__sourceDir)
+      return String(manifest.__sourceDir).replace(/\/+$/, "")
+    return String(Qt.resolvedUrl(".")).replace(/^file:\/\//, "").replace(/\/+$/, "")
   }
 
   function isObject(value) {
@@ -1022,6 +1025,7 @@ Item {
   }
 
   onManifestChanged: initializeFromManifest()
+  Component.onCompleted: initializeFromManifest()
 
   Timer {
     id: pollTimer
