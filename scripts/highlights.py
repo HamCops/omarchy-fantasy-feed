@@ -25,6 +25,7 @@ import re
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -55,6 +56,30 @@ _HREF = re.compile(r'href="(https?://[^"]+)"')
 _SUFFIX = re.compile(r"^(jr|sr|ii|iii|iv|v)\.?$", re.IGNORECASE)
 _TOUCHDOWN = re.compile(r"\b(td|touchdown|scores?|house)\b", re.IGNORECASE)
 _VREDDIT = re.compile(r"^https?://v\.redd\.it/([A-Za-z0-9]+)")
+
+# Anyone can post to r/nfl, and a clip link is handed straight to mpv and
+# yt-dlp on click. Only hosts those two are meant to handle get through; a
+# post linking anywhere else is dropped rather than opened.
+CLIP_HOSTS = frozenset({
+    "v.redd.it",
+    "streamable.com",
+    "x.com",
+    "twitter.com",
+    "youtube.com",
+    "youtu.be",
+})
+
+
+def clip_host_allowed(url: str) -> bool:
+    """True when `url` is https on an allowed clip host (or a subdomain of one)."""
+    try:
+        parts = urllib.parse.urlsplit(url)
+    except ValueError:
+        return False
+    host = (parts.hostname or "").lower()
+    if parts.scheme != "https" or not host:
+        return False
+    return any(host == allowed or host.endswith("." + allowed) for allowed in CLIP_HOSTS)
 
 
 def default_cache_path() -> Path:
@@ -88,6 +113,8 @@ def parse_feed(text: str) -> list[dict[str, Any]]:
         hosted = _VREDDIT.match(media)
         if hosted:
             media = f"https://v.redd.it/{hosted.group(1)}/HLSPlaylist.m3u8"
+        if not clip_host_allowed(media):
+            continue
         try:
             published_at = datetime.fromisoformat(published.replace("Z", "+00:00")).timestamp()
         except ValueError:
