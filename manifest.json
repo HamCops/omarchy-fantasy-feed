@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "id": "io.github.studioxvii.fantasy-feed",
   "name": "Fantasy Feed",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "author": "Tom Hammond",
   "license": "MIT",
-  "description": "Live NFL plays, fantasy scoring, weekly leaders, and favorite-player alerts.",
+  "description": "Live NFL plays, league-exact fantasy scoring, weekly leaders, and a live head-to-head matchup synced from your ESPN league.",
   "kinds": [
     "service",
     "bar-widget",

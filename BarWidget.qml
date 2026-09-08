@@ -32,6 +32,8 @@ BarWidget {
     var label = statusLabel()
     if (feedService && feedService.favoriteSpotlightActive)
       label += " · ★ " + feedService.favoriteBarLabel()
+    else if (feedService && feedService.hasMatchup)
+      label += " · " + feedService.matchupBarLabel()
     else if (feedService && feedService.favoriteCount > 0)
       label += " · ★" + feedService.favoriteCount
     return label
@@ -41,6 +43,21 @@ BarWidget {
     var status = feedService && feedService.favoriteSpotlightActive
       ? "Favorite-player play"
       : (feedStale ? "Stale fantasy feed" : (feedLoading ? "Refreshing fantasy feed" : "Fantasy feed"))
+    if (feedService && feedService.hasMatchup && feedService.league) {
+      var league = feedService.league
+      status += "\n" + String(league.name || "") + " · week " + String(league.week || "")
+        + " · " + String(league.me ? league.me.name : "me") + " vs "
+        + String(league.opponent ? league.opponent.name : "?")
+      if (feedService.liveMatchupFresh && feedService.liveMatchup) {
+        var live = feedService.liveMatchup
+        status += "\nESPN: " + Number(live.me.points).toFixed(1) + " – "
+          + Number(live.opponent.points).toFixed(1)
+          + " · projected " + Number(live.me.projected).toFixed(1) + " – "
+          + Number(live.opponent.projected).toFixed(1)
+        if (live.winProbability !== null && live.winProbability !== undefined)
+          status += " · win " + Math.round(Number(live.winProbability) * 100) + "%"
+      }
+    }
     var play = latestEvent ? String(latestEvent.rawText || "") : ""
     var message = status + "\nLeft click: open feed · Middle click: refresh"
     return play ? message + "\n" + play : message

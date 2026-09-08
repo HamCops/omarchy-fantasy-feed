@@ -1,4 +1,51 @@
-# Fantasy Feed
+# Fantasy Feed (league-synced fork)
+
+This fork of [studioxvii/omarchy-fantasy-feed](https://github.com/studioxvii/omarchy-fantasy-feed)
+adds a **league sync**: an external script writes your ESPN fantasy matchup
+into the plugin's favorites file, and the plugin turns that into a live
+head-to-head -- your starters versus your opponent's, scored by your league's
+actual rules, with ESPN's own totals in the bar. The plugin itself still needs
+no account and never sees your credentials; the sync lives in
+[espn-mcp](https://github.com/HamCops/espn-mcp) (`scripts/feed_sync.py`).
+
+Install from this fork:
+
+```sh
+omarchy plugin add "https://github.com/HamCops/omarchy-fantasy-feed.git" --enable --yes
+```
+
+## League sync
+
+`feed_sync.py` writes two files, both watched by the plugin, so a sync applies
+without restarting the shell:
+
+- `~/.config/omarchy/fantasy-feed.json` -- the existing favorites file. Each
+  favorite gains `side: "me" | "opp"` and `slot` (QB, RB, FLEX, ...), and a
+  `league` block carries the league name, week, both team names and the
+  **scoring rules** in the plugin's stat vocabulary. Favorites you star by
+  hand still work; they simply have no side.
+- `~/.cache/fantasy-feed/league.json` -- ESPN's live matchup totals, projected
+  totals and win probability, refreshed every minute while games are on.
+
+With a league synced:
+
+- **Bar**: `LIVE · ME 41.2 – 37.9 TM2`. ESPN's totals when the sync is fresh
+  (they include K and D/ST, which the play parser cannot score); otherwise the
+  sum of each side's weekly totals.
+- **Rail**: `MATCHUP · LG`, your starters first, then the opponent's with a red
+  border. An opponent's positive play pulses red -- their gain is your loss.
+- **Standalone window, tab 4 (`⚔ MATCHUP`)**: both lineups side by side, slot
+  by slot, weekly points and last play, with ESPN's line underneath.
+- **Alerts**: opponent plays alert too, headlined `⚔ OPP`.
+- **Scoring menu**: a `LEAGUE` option (`LG`) beside PPR/STD, selected
+  automatically on the first sync. It applies the synced rules: ESPN's bucket
+  form (1 point per *complete* 25 passing / 10 rushing / 10 receiving yards,
+  floor) is honoured exactly in weekly totals; a single play's delta is scored
+  linearly, since the bucket only resolves against the game total. Passing
+  touchdowns worth 5, no PPR, whatever the league says.
+
+Without a sync nothing changes: PPR/STD, favorites and alerts behave as
+upstream.
 
 [![CI](https://github.com/studioxvii/omarchy-fantasy-feed/actions/workflows/ci.yml/badge.svg)](https://github.com/studioxvii/omarchy-fantasy-feed/actions/workflows/ci.yml)
 [![Omarchy plugin](https://img.shields.io/badge/Omarchy-plugin-f26d5b)](https://omarchy.org/)

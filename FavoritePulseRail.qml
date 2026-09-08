@@ -15,6 +15,26 @@ Item {
   readonly property string alertPreset: service ? service.alertPreset : "off"
   readonly property var players: service && Array.isArray(service.favoritePlayerRows)
     ? service.favoritePlayerRows : []
+  readonly property bool matchup: service ? service.hasMatchup === true : false
+  readonly property var totals: service && service.matchupTotals
+    ? service.matchupTotals : ({me: 0, opp: 0})
+  readonly property color opponentColor: "#ff6b6b"
+  readonly property color mineColor: "#6fcf79"
+
+  function modeLabel() {
+    if (scoringMode === "ppr") return "PPR"
+    if (scoringMode === "league") return "LG"
+    return "STD"
+  }
+
+  function points(value) {
+    return service ? service.pointsIn(value) : 0
+  }
+
+  function opponentLabel() {
+    var league = service ? service.league : null
+    return league && league.opponent ? String(league.opponent.abbrev || "OPP") : "OPP"
+  }
 
   signal playerActivated(string playerId, string eventToken)
 
@@ -53,8 +73,18 @@ Item {
     spacing: Style.space(2)
 
     Text {
-      text: "MY PLAYERS · " + (root.scoringMode === "ppr" ? "PPR" : "STD")
+      text: (root.matchup ? "MATCHUP · " : "MY PLAYERS · ") + root.modeLabel()
       color: Qt.darker(root.foreground, 1.3)
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.caption
+      font.bold: true
+    }
+
+    Text {
+      visible: root.matchup
+      text: "ME " + Number(root.totals.me).toFixed(1) + " · " + root.opponentLabel()
+        + " " + Number(root.totals.opp).toFixed(1)
+      color: Number(root.totals.me) >= Number(root.totals.opp) ? root.mineColor : root.opponentColor
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       font.bold: true
@@ -76,8 +106,8 @@ Item {
       fontFamily: root.fontFamily
       HoverHandler { id: alertHelpHover }
       ToolTip.visible: alertHelpHover.hovered && !alertDropdown.popupOpen
-      ToolTip.text: "New plays by My Players only. Thresholds use the selected "
-        + "PPR/STD points from one play."
+      ToolTip.text: "New plays by My Players (both sides of the matchup). Thresholds "
+        + "use the selected scoring mode's points from one play."
       onChanged: function(value) {
         if (root.service) root.service.setAlertPreset(value)
       }
@@ -108,22 +138,27 @@ Item {
           id: playerChip
           required property var modelData
           readonly property var player: modelData
-          readonly property real weeklyPoints: Number(player.points
-            ? player.points[root.scoringMode] : 0)
-          readonly property real latestPoints: Number(player.latestPoints
-            ? player.latestPoints[root.scoringMode] : 0)
-          readonly property color pulseColor: root.pointsColor(latestPoints)
+          readonly property bool opponent: String(player.side || "") === "opp"
+          readonly property real weeklyPoints: root.points(player.points)
+          readonly property real latestPoints: root.points(player.latestPoints)
+          // An opponent's gain is your loss: their positive plays pulse red.
+          readonly property color pulseColor: opponent
+            ? root.pointsColor(-latestPoints) : root.pointsColor(latestPoints)
           width: Style.space(166)
           height: parent.height
           radius: Style.cornerRadius
           color: player.spotlight
             ? Qt.rgba(pulseColor.r, pulseColor.g, pulseColor.b, 0.13)
-            : (player.redZone ? Qt.rgba(1, 0.55, 0.2, 0.08) : "transparent")
+            : (player.redZone ? Qt.rgba(1, 0.55, 0.2, 0.08)
+              : (opponent ? Qt.rgba(root.opponentColor.r, root.opponentColor.g, root.opponentColor.b, 0.05)
+                : "transparent"))
           border.width: player.spotlight ? 2 : 1
           border.color: player.spotlight
             ? pulseColor
             : (player.redZone ? "#ffb347"
-              : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35))
+              : (opponent
+                ? Qt.rgba(root.opponentColor.r, root.opponentColor.g, root.opponentColor.b, 0.45)
+                : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)))
 
           onPlayerChanged: {
             if (player && player.spotlight) pulseAnimation.restart()
@@ -144,6 +179,8 @@ Item {
 
           ToolTip.visible: chipHover.hovered
           ToolTip.text: String(player.displayName || "Unknown player")
+            + (playerChip.opponent ? " · OPPONENT" : (String(player.side || "") === "me" ? " · MY STARTER" : ""))
+            + (player.slot ? " · " + String(player.slot) : "")
             + (player.redZone ? " · RED ZONE · " + String(player.redZoneDetail || "") : "")
             + "\nClick to jump to the latest play"
 
@@ -173,9 +210,11 @@ Item {
                 id: playerState
                 anchors.right: parent.right
                 text: playerChip.player.redZone
-                  ? "RZ" : (String(playerChip.player.team || "") + " "
-                    + String(playerChip.player.position || ""))
-                color: playerChip.player.redZone ? "#ffb347" : Color.accent
+                  ? "RZ" : ((playerChip.opponent ? "⚔ " : "")
+                    + String(playerChip.player.team || "") + " "
+                    + String(playerChip.player.slot || playerChip.player.position || ""))
+                color: playerChip.player.redZone ? "#ffb347"
+                  : (playerChip.opponent ? root.opponentColor : Color.accent)
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
                 font.bold: true
@@ -184,12 +223,14 @@ Item {
 
             Text {
               width: parent.width
-              text: root.signedPoints(playerChip.weeklyPoints) + " "
-                + (root.scoringMode === "ppr" ? "PPR" : "STD")
+              text: root.signedPoints(playerChip.weeklyPoints) + " " + root.modeLabel()
                 + (playerChip.player.latestEvent
                   ? " · " + root.signedPoints(playerChip.latestPoints) : "")
               color: playerChip.player.spotlight
-                ? playerChip.pulseColor : root.pointsColor(playerChip.weeklyPoints)
+                ? playerChip.pulseColor
+                : (playerChip.opponent
+                  ? root.pointsColor(-playerChip.weeklyPoints)
+                  : root.pointsColor(playerChip.weeklyPoints))
               font.family: root.fontFamily
               font.pixelSize: Style.font.bodySmall
               font.bold: true

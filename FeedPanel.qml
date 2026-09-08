@@ -215,7 +215,13 @@ Panel {
   }
 
   function scoringLabel() {
-    return scoringMode === "ppr" ? "PPR" : "STD"
+    if (scoringMode === "ppr") return "PPR"
+    if (scoringMode === "league") return "LG"
+    return "STD"
+  }
+
+  function pointsIn(points) {
+    return feedService ? feedService.pointsIn(points) : 0
   }
 
   function htmlEscape(value) {
@@ -252,7 +258,7 @@ Panel {
       var participant = participants[index]
       var match = playerNameMatch(raw, participant ? participant.displayName : "")
       if (!match) continue
-      var points = participant && participant.points ? participant.points[scoringMode] : 0
+      var points = pointsIn(participant ? participant.points : null)
       annotations.push({start: match.index, end: match.index + match[0].length, points: points})
     }
     annotations.sort(function(left, right) { return left.start - right.start })
@@ -300,8 +306,16 @@ Panel {
   function updateLabel() {
     if (!feedService) return "Service unavailable"
     var label = newestEvents.length + (newestEvents.length === 1 ? " play" : " plays")
-    return feedService.pendingEventCount > 0
-      ? label + " · " + feedService.pendingEventCount + " incoming" : label
+    if (feedService.pendingEventCount > 0)
+      label += " · " + feedService.pendingEventCount + " incoming"
+    if (feedService.hasMatchup) {
+      var live = feedService.liveMatchupFresh ? feedService.liveMatchup : null
+      var league = feedService.league
+      label += " · " + String(league.name || "league") + " wk " + String(league.week || "")
+      if (live && live.winProbability !== null && live.winProbability !== undefined)
+        label += " · win " + Math.round(Number(live.winProbability) * 100) + "%"
+    }
+    return label
   }
 
   function emptyTitle() {
@@ -435,10 +449,16 @@ Panel {
               id: scoringDropdown
               width: Style.space(86)
               showLabel: false
-              options: [
-                {value: "ppr", label: "PPR"},
-                {value: "standard", label: "STD"}
-              ]
+              options: root.feedService && root.feedService.league
+                ? [
+                  {value: "league", label: "LEAGUE"},
+                  {value: "ppr", label: "PPR"},
+                  {value: "standard", label: "STD"}
+                ]
+                : [
+                  {value: "ppr", label: "PPR"},
+                  {value: "standard", label: "STD"}
+                ]
               value: root.scoringMode
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
