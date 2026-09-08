@@ -54,6 +54,7 @@ _ATOM = {"a": "http://www.w3.org/2005/Atom"}
 _HREF = re.compile(r'href="(https?://[^"]+)"')
 _SUFFIX = re.compile(r"^(jr|sr|ii|iii|iv|v)\.?$", re.IGNORECASE)
 _TOUCHDOWN = re.compile(r"\b(td|touchdown|scores?|house)\b", re.IGNORECASE)
+_VREDDIT = re.compile(r"^https?://v\.redd\.it/([A-Za-z0-9]+)")
 
 
 def default_cache_path() -> Path:
@@ -81,6 +82,12 @@ def parse_feed(text: str) -> list[dict[str, Any]]:
                      or entry.findtext("a:updated", default="", namespaces=_ATOM) or "")
         content = html.unescape(entry.findtext("a:content", default="", namespaces=_ATOM) or "")
         external = [u for u in _HREF.findall(content) if "reddit.com" not in u]
+        media = external[0] if external else permalink
+        # Reddit-hosted video: yt-dlp is refused without an account, but the
+        # clip's HLS playlist (video + audio) is public and mpv plays it.
+        hosted = _VREDDIT.match(media)
+        if hosted:
+            media = f"https://v.redd.it/{hosted.group(1)}/HLSPlaylist.m3u8"
         try:
             published_at = datetime.fromisoformat(published.replace("Z", "+00:00")).timestamp()
         except ValueError:
@@ -92,9 +99,7 @@ def parse_feed(text: str) -> list[dict[str, Any]]:
             "id": post_id,
             "title": title,
             "permalink": permalink,
-            # v.redd.it clips need the post URL for audio; everything else
-            # (streamable, x, youtube) plays from the external link.
-            "url": external[0] if external and "v.redd.it" not in external[0] else permalink,
+            "url": media,
             "publishedAt": published_at,
         })
     return posts

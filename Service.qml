@@ -509,12 +509,15 @@ Item {
   }
 
   function highlightCommand(highlight) {
-    return [
-      "mpv", "--force-window=immediate", "--really-quiet", "--keep-open=yes",
-      "--ytdl-format=bestvideo[height<=1080]+bestaudio/best",
-      "--title=Fantasy Feed · " + String(highlight.title || "highlight"),
-      String(highlight.url)
-    ]
+    var url = String(highlight.url)
+    var command = ["mpv", "--force-window=immediate", "--really-quiet", "--keep-open=yes",
+      "--title=Fantasy Feed · " + String(highlight.title || "highlight")]
+    // A direct HLS playlist (Reddit-hosted video) needs no yt-dlp; everything
+    // else (streamable, x.com, YouTube) is resolved through it.
+    if (url.indexOf(".m3u8") !== -1) command.push("--no-ytdl")
+    else command.push("--ytdl-format=bestvideo[height<=1080]+bestaudio/best")
+    command.push(url)
+    return command
   }
 
   // Opens the clip in mpv (yt-dlp resolves streamable, x.com, v.redd.it).
