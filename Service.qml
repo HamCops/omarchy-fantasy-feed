@@ -56,6 +56,9 @@ Item {
   }
   readonly property var matchupTotals: buildMatchupTotals()
   property string _favoritesText: ""
+  // Highlight clips matched to plays (r/nfl, via scripts/highlights.py).
+  property var _notifiedHighlights: ({})
+  readonly property var highlightStatus: snapshot && isObject(snapshot.highlights) ? snapshot.highlights : null
   readonly property var favoriteEvents: {
     var filtered = []
     var sourceEvents = events
@@ -493,6 +496,66 @@ Item {
     ])
   }
 
+  function eventHighlight(event) {
+    return event && isObject(event.highlight) && event.highlight.url ? event.highlight : null
+  }
+
+  function highlightAge(event) {
+    var highlight = eventHighlight(event)
+    if (!highlight) return ""
+    var seconds = Number(highlight.latencySeconds)
+    if (!isFinite(seconds)) return ""
+    return seconds < 90 ? Math.max(0, Math.round(seconds)) + "s" : Math.round(seconds / 60) + "m"
+  }
+
+  function highlightCommand(highlight) {
+    return [
+      "mpv", "--force-window=immediate", "--really-quiet", "--keep-open=yes",
+      "--ytdl-format=bestvideo[height<=1080]+bestaudio/best",
+      "--title=Fantasy Feed · " + String(highlight.title || "highlight"),
+      String(highlight.url)
+    ]
+  }
+
+  // Opens the clip in mpv (yt-dlp resolves streamable, x.com, v.redd.it).
+  // Returns false when the play has no clip yet.
+  function openHighlight(event) {
+    var highlight = eventHighlight(event)
+    if (!highlight) return false
+    Quickshell.execDetached(highlightCommand(highlight))
+    return true
+  }
+
+  // A clip lands minutes after the play, so the play alert cannot carry it.
+  // Send one follow-up per clip, for plays the alert policy would have
+  // announced, with the click going straight to mpv.
+  function notifyNewHighlights(value) {
+    if (alertPreset === "off") return
+    var sourceEvents = value && Array.isArray(value.events) ? value.events : []
+    for (var index = 0; index < sourceEvents.length; index++) {
+      var event = sourceEvents[index]
+      var highlight = eventHighlight(event)
+      if (!highlight) continue
+      var key = eventIdentity(event) + "|" + String(highlight.id || highlight.url)
+      if (_notifiedHighlights[key]) continue
+      _notifiedHighlights[key] = true
+      if (!shouldNotifyFavoriteEvent(event)) continue
+      var matches = favoriteParticipants(event)
+      var who = matches.length > 0 ? shortPlayerName(matches[0].displayName) : "PLAY"
+      var opponentPlay = matches.length > 0 && favoriteSide(matches[0].playerId) === "opp"
+      Quickshell.execDetached([
+        "omarchy-notification-send",
+        "--app-name", "Fantasy Feed",
+        "-g", "▶",
+        "-u", "low",
+        "-t", "9000",
+        (opponentPlay ? "⚔ OPP " : "★ ") + who + " · HIGHLIGHT " + highlightAge(event),
+        String(highlight.title || event.rawText || "Highlight clip"),
+        "--exec"
+      ].concat(highlightCommand(highlight)))
+    }
+  }
+
   function eventToken(event) {
     if (!event || typeof event !== "object") return ""
     var identity = String(event.eventId || (String(event.provider || "") + ":"
@@ -882,6 +945,7 @@ Item {
 
     stagePresentation(value)
     snapshot = value
+    notifyNewHighlights(value)
     loading = false
     lastUpdated = value.observedAt
     if (exitCode === 10) {
@@ -1081,6 +1145,7 @@ Item {
         scoringMode: root.scoringMode,
         alertPreset: root.alertPreset,
         matchup: root.hasMatchup ? root.matchupBarLabel() : "",
+        highlights: root.highlightStatus,
         liveMatchupFresh: root.liveMatchupFresh,
         lastUpdated: root.lastUpdated,
         lastError: root.lastError,

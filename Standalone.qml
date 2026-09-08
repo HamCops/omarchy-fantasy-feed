@@ -600,6 +600,8 @@ Item {
               readonly property var eventData: modelData
               readonly property bool favoriteSpotlight: root.service
                 ? root.service.isSpotlightEvent(eventData) : false
+              readonly property var highlight: root.service
+                ? root.service.eventHighlight(eventData) : null
               width: ListView.view.width
               height: eventColumn.implicitHeight + Style.space(12)
               color: favoriteSpotlight
@@ -609,6 +611,15 @@ Item {
               border.color: favoriteSpotlight
                 ? root.positivePoints
                 : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
+
+              HoverHandler { id: cardHover }
+              TapHandler {
+                enabled: eventCard.highlight !== null
+                onTapped: if (root.service) root.service.openHighlight(eventCard.eventData)
+              }
+              ToolTip.visible: cardHover.hovered && eventCard.highlight !== null
+              ToolTip.text: eventCard.highlight
+                ? "▶ " + String(eventCard.highlight.title || "") + "\nClick to play in mpv" : ""
 
               Column {
                 id: eventColumn
@@ -636,7 +647,8 @@ Item {
                   Text {
                     id: lifecycleText
                     anchors.right: parent.right
-                    text: (eventCard.favoriteSpotlight ? "★ " : "")
+                    text: (eventCard.highlight ? "▶ CLIP " + root.service.highlightAge(eventCard.eventData) + " · " : "")
+                      + (eventCard.favoriteSpotlight ? "★ " : "")
                       + String(eventCard.eventData.lifecycle || "current").toUpperCase()
                     color: eventCard.eventData.lifecycle === "voided" ? root.negativePoints : Qt.darker(root.foreground, 1.35)
                     font.family: root.fontFamily
