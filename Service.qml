@@ -344,10 +344,18 @@ Item {
         redZoneDetail: redZoneGame ? String(redZoneGame.downDistance || "") : ""
       })
     }
+    // Lineup order, mine first. Explicit keys throughout: the engine's sort
+    // is not guaranteed stable, so ties must not be left to it.
     var sideOrder = {me: 0, "": 1, opp: 2}
+    var slotOrder = {QB: 0, RB: 1, WR: 2, TE: 3, FLEX: 4, "RB/WR": 4, "WR/TE": 4, OP: 4, K: 5, "D/ST": 6}
     rows.sort(function(left, right) {
       var order = (sideOrder[left.side] || 0) - (sideOrder[right.side] || 0)
-      return order !== 0 ? order : 0
+      if (order !== 0) return order
+      var leftSlot = slotOrder[left.slot || left.position]
+      var rightSlot = slotOrder[right.slot || right.position]
+      order = (leftSlot === undefined ? 9 : leftSlot) - (rightSlot === undefined ? 9 : rightSlot)
+      if (order !== 0) return order
+      return String(left.displayName).localeCompare(String(right.displayName))
     })
     return rows
   }
