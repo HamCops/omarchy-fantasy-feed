@@ -217,38 +217,56 @@ def score_post(event: Mapping[str, Any], post: Mapping[str, Any]) -> int:
 
 
 def match_highlights(events: list[dict[str, Any]], posts: list[dict[str, Any]], now: float) -> int:
-    """Attach `highlight` to matching events in place. Returns matches made."""
-    matched = 0
-    for event in events:
+    """Attach `highlight` to matching events in place. Returns matches made.
+
+    One post serves one play: candidates are ranked by score, then by how
+    soon after the play the post appeared, and assigned greedily, so a
+    touchdown claims its clip ahead of the same player's earlier short run.
+    """
+    candidates: list[tuple[int, float, int, dict[str, Any]]] = []
+    for index, event in enumerate(events):
         if event.get("lifecycle") == "voided":
             event.pop("highlight", None)
             continue
-        best_post = None
-        best_key = (0, 0.0)
         played_at = _wallclock(event)
         for post in posts:
             score = score_post(event, post)
-            if score < MIN_SCORE:
-                continue
-            # Higher score wins; among equals, the earliest clip after the play.
-            key = (score, -abs(float(post.get("publishedAt", 0)) - (played_at or 0)))
-            if key > best_key:
-                best_key, best_post = key, post
-        if best_post is None:
+            if score >= MIN_SCORE:
+                distance = abs(float(post.get("publishedAt", 0)) - (played_at or 0))
+                candidates.append((score, distance, index, post))
+    candidates.sort(key=lambda c: (-c[0], c[1]))
+
+    chosen: dict[int, dict[str, Any]] = {}
+    used_posts: set[str] = set()
+    for score, _distance, index, post in candidates:
+        if index in chosen or post["id"] in used_posts:
+            continue
+        chosen[index] = post
+        used_posts.add(post["id"])
+
+    matched = 0
+    for index, event in enumerate(events):
+        post = chosen.get(index)
+        if post is None:
+            # Keep an earlier match only while its post is not claimed elsewhere.
+            current = event.get("highlight")
+            if isinstance(current, Mapping) and current.get("id") in used_posts:
+                event.pop("highlight", None)
             continue
         current = event.get("highlight")
-        if isinstance(current, Mapping) and current.get("id") == best_post["id"]:
+        if isinstance(current, Mapping) and current.get("id") == post["id"]:
             continue
+        played_at = _wallclock(event) or 0.0
         event["highlight"] = {
             "source": "reddit",
-            "id": best_post["id"],
-            "title": best_post["title"],
-            "url": best_post["url"],
-            "permalink": best_post["permalink"],
+            "id": post["id"],
+            "title": post["title"],
+            "url": post["url"],
+            "permalink": post["permalink"],
             "publishedAt": datetime.fromtimestamp(
-                float(best_post["publishedAt"]), timezone.utc
+                float(post["publishedAt"]), timezone.utc
             ).isoformat().replace("+00:00", "Z"),
-            "latencySeconds": int(round(float(best_post["publishedAt"]) - (played_at or 0))),
+            "latencySeconds": int(round(float(post["publishedAt"]) - played_at)),
         }
         matched += 1
     return matched
