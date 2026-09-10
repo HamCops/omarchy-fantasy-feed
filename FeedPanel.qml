@@ -20,9 +20,11 @@ Panel {
     ? bar.shell.serviceFor("io.github.studioxvii.fantasy-feed")
     : null
 
-  readonly property var serviceEvents: feedService && Array.isArray(feedService.visibleEvents)
-    ? feedService.visibleEvents
+  readonly property var serviceEvents: feedService && Array.isArray(feedService.feedEvents)
+    ? feedService.feedEvents
     : []
+  readonly property int hiddenByFilter: feedService && Array.isArray(feedService.visibleEvents)
+    ? feedService.visibleEvents.length - serviceEvents.length : 0
   readonly property var newestEvents: {
     var reversed = []
     for (var index = serviceEvents.length - 1; index >= 0; index--)
@@ -42,6 +44,7 @@ Panel {
   property int selectedIndex: 0
   property bool cursorActive: true
   readonly property string scoringMode: feedService ? feedService.scoringMode : "ppr"
+  readonly property string feedFilter: feedService ? feedService.feedFilter : "all"
   property bool followNewest: true
   property int unseenArrivals: 0
   property string _lastTopToken: ""
@@ -334,6 +337,7 @@ Panel {
     if (feedService.lastError && !hasSnapshot) return "Could not load the feed"
     if (feedService.games.length > 0 && feedService.enabledGameCount === 0)
       return "No games selected"
+    if (hiddenByFilter > 0) return "No plays pass the " + feedService.feedFilterLabel() + " filter"
     return "No fantasy plays yet"
   }
 
@@ -343,12 +347,16 @@ Panel {
     if (feedService.lastError && !hasSnapshot) return String(feedService.lastError)
     if (feedService.games.length > 0 && feedService.enabledGameCount === 0)
       return "Click one or more matchups above to add them back to the feed."
+    if (hiddenByFilter > 0)
+      return hiddenByFilter + (hiddenByFilter === 1 ? " play is" : " plays are")
+        + " hidden by the points filter. Set it to ALL (f) to see everything."
     if (feedService.demoMode) return "Replay mode is ready, but this fixture has no visible events."
     return "Keep this panel open or switch to Demo for a deterministic sample."
   }
 
   onNewestEventsChanged: handleEventModelChange()
   onScoringModeChanged: scoringDropdown.value = scoringMode
+  onFeedFilterChanged: filterDropdown.value = feedFilter
   onOpenedChanged: {
     if (opened) {
       selectedIndex = 0
@@ -388,6 +396,8 @@ Panel {
         else if (text === "o" || text === "O") root.popOut()
         else if (text === "p" || text === "P")
           if (root.feedService) root.feedService.toggleScoringMode()
+        else if (text === "f" || text === "F")
+          if (root.feedService) root.feedService.cycleFeedFilter()
       }
 
       Column {
@@ -477,6 +487,28 @@ Panel {
               fontFamily: root.contentFontFamily
               onChanged: function(value) {
                 if (root.feedService) root.feedService.setScoringMode(value)
+              }
+            }
+
+            Dropdown {
+              id: filterDropdown
+              width: Style.space(64)
+              showLabel: false
+              options: [
+                {value: "all", label: "ALL"},
+                {value: "min3", label: "3+"},
+                {value: "min6", label: "6+"},
+                {value: "touchdowns", label: "TD"}
+              ]
+              value: root.feedFilter
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              HoverHandler { id: filterHover }
+              ToolTip.visible: filterHover.hovered && !filterDropdown.popupOpen
+              ToolTip.text: "Plays shown in the feed: all, worth 3+ or 6+ points to someone "
+                + "in the selected scoring, or touchdowns (f). Bar, rail and totals still count every play."
+              onChanged: function(value) {
+                if (root.feedService) root.feedService.setFeedFilter(value)
               }
             }
 
@@ -753,7 +785,7 @@ Panel {
         Text {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "p scoring · o pop out · j/k select · Enter/v play clip · r refresh · d demo/live · Esc close"
+          text: "p scoring · f filter · o pop out · j/k select · Enter/v play clip · r refresh · d demo/live · Esc close"
           color: Qt.darker(root.contentForeground, 1.55)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption

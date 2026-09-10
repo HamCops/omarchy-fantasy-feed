@@ -13,6 +13,13 @@ Item {
   property var service: null
   property bool closingFromHost: false
   property string activeTab: "feed"
+  readonly property string feedFilter: service ? service.feedFilter : "all"
+  readonly property int hiddenByFilter: {
+    if (!service) return 0
+    var all = activeTab === "favorites" ? service.visibleFavoriteEvents : service.visibleEvents
+    return all.length - displayedEvents.length
+  }
+  onFeedFilterChanged: filterDropdown.value = feedFilter
   readonly property string scoringMode: service ? service.scoringMode : "ppr"
   property string positionFilter: "ALL"
   property bool followNewest: true
@@ -30,7 +37,7 @@ Item {
 
   readonly property var displayedEvents: {
     var source = service
-      ? (activeTab === "favorites" ? service.visibleFavoriteEvents : service.visibleEvents)
+      ? (activeTab === "favorites" ? service.feedFavoriteEvents : service.feedEvents)
       : []
     var reversed = []
     for (var index = source.length - 1; index >= 0; index--) reversed.push(source[index])
@@ -358,6 +365,9 @@ Item {
         } else if (event.key === Qt.Key_P) {
           if (root.service) root.service.toggleScoringMode()
           event.accepted = true
+        } else if (event.key === Qt.Key_F && !leaderboardSearch.activeFocus) {
+          if (root.service) root.service.cycleFeedFilter()
+          event.accepted = true
         } else if (event.key === Qt.Key_Slash && root.activeTab === "leaders") {
           leaderboardSearch.forceActiveFocus(); event.accepted = true
         } else if (event.key === Qt.Key_R && root.service) {
@@ -434,6 +444,28 @@ Item {
               fontFamily: root.fontFamily
               onChanged: function(value) {
                 if (root.service) root.service.setScoringMode(value)
+              }
+            }
+
+            Dropdown {
+              id: filterDropdown
+              width: Style.space(64)
+              showLabel: false
+              options: [
+                {value: "all", label: "ALL"},
+                {value: "min3", label: "3+"},
+                {value: "min6", label: "6+"},
+                {value: "touchdowns", label: "TD"}
+              ]
+              value: root.feedFilter
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              HoverHandler { id: filterHover }
+              ToolTip.visible: filterHover.hovered && !filterDropdown.popupOpen
+              ToolTip.text: "Plays shown in the feed and favorites tabs: all, worth 3+ or 6+ points "
+                + "to someone in the selected scoring, or touchdowns (f). Leaderboard, matchup and totals still count every play."
+              onChanged: function(value) {
+                if (root.service) root.service.setFeedFilter(value)
               }
             }
 
@@ -555,14 +587,18 @@ Item {
               && root.displayedEvents.length === 0
             width: parent.width - Style.space(40)
             horizontalAlignment: Text.AlignHCenter
-            text: root.activeTab === "favorites"
+            text: root.hiddenByFilter > 0
+              ? root.hiddenByFilter + (root.hiddenByFilter === 1 ? " play is" : " plays are")
+                + " hidden by the " + root.service.feedFilterLabel()
+                + " filter. Set it to ALL (f) to see everything."
+              : (root.activeTab === "favorites"
               ? (root.service && root.service.favoriteCount > 0
                 ? "No plays for your favorite players yet."
                 : "Favorite a player from the leaderboard to build a custom feed.")
               : (root.service && root.service.games.length > 0
                   && root.service.enabledGameCount === 0
                 ? "No games selected. Click one or more matchups above to add them back."
-                : "No fantasy-relevant plays yet.")
+                : "No fantasy-relevant plays yet."))
             color: Qt.darker(root.foreground, 1.35)
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -1022,7 +1058,7 @@ Item {
           id: footer
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "Click games to filter · / search players · 1 feed · 2 leaderboard · 3 favorites · 4 matchup · p scoring · r refresh · Esc close"
+          text: "Click games to filter · / search players · 1 feed · 2 leaderboard · 3 favorites · 4 matchup · p scoring · f points filter · r refresh · Esc close"
           color: Qt.darker(root.foreground, 1.55)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
