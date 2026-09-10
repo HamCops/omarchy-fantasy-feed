@@ -4,6 +4,19 @@ All notable changes to Fantasy Feed are documented here.
 
 ## [1.1.0] - 2026-09-08 (HamCops fork)
 
+- Parse plays ESPN wraps in extra text: a "reported in as eligible" preamble
+  (which hid a passing touchdown), formation notes such as `(No Huddle,
+  Shotgun)` on runs, runs and catches ending `ran ob at`, and stray
+  whitespace. Parser version is now `espn-narrative-v2`, and a play rejected
+  by an older parser is fetched and parsed again on the next refresh instead
+  of staying hidden. A play first seen after such a retry arrives as
+  `current`, not `corrected`.
+- Add a points filter to the feed lists (`ALL` / `3+` / `6+` / `TD`, key `f`),
+  beside the scoring menu in both the panel and the standalone window. Every
+  carry and catch scores something, so the full feed is busy; the filter
+  keeps plays worth at least that much to someone in the selected scoring, or
+  touchdowns. Bar, rail, leaderboard, matchup totals and alerts still count
+  every play. Persisted with the other settings.
 - Acknowledge a clip click at once: the play flashes in the accent colour,
   pulses and reads `▶ OPENING…` for three seconds while mpv starts.
 - Open Reddit-hosted clips through their DASH manifest instead of the HLS
