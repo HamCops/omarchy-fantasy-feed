@@ -602,15 +602,30 @@ Item {
                 ? root.service.isSpotlightEvent(eventData) : false
               readonly property var highlight: root.service
                 ? root.service.eventHighlight(eventData) : null
+              readonly property bool opening: root.service
+                ? root.service.isOpening(eventData) : false
               width: ListView.view.width
               height: eventColumn.implicitHeight + Style.space(12)
-              color: favoriteSpotlight
-                ? Qt.rgba(root.positivePoints.r, root.positivePoints.g, root.positivePoints.b, 0.08)
-                : "transparent"
-              border.width: favoriteSpotlight ? 2 : 1
-              border.color: favoriteSpotlight
-                ? root.positivePoints
-                : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
+              color: opening
+                ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.16)
+                : (favoriteSpotlight
+                  ? Qt.rgba(root.positivePoints.r, root.positivePoints.g, root.positivePoints.b, 0.08)
+                  : "transparent")
+              border.width: opening || favoriteSpotlight ? 2 : 1
+              border.color: opening
+                ? Color.accent
+                : (favoriteSpotlight
+                  ? root.positivePoints
+                  : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35))
+              Behavior on color { ColorAnimation { duration: 120 } }
+
+              // Acknowledge a clip launch at once, before mpv has a window.
+              onOpeningChanged: if (opening) openingPulse.restart()
+              SequentialAnimation {
+                id: openingPulse
+                NumberAnimation { target: eventCard; property: "scale"; to: 1.02; duration: 90 }
+                NumberAnimation { target: eventCard; property: "scale"; to: 1; duration: 160 }
+              }
 
               HoverHandler { id: cardHover }
               TapHandler {
@@ -647,10 +662,14 @@ Item {
                   Text {
                     id: lifecycleText
                     anchors.right: parent.right
-                    text: (eventCard.highlight ? "▶ CLIP " + root.service.highlightAge(eventCard.eventData) + " · " : "")
+                    text: (eventCard.opening
+                        ? "▶ OPENING… · "
+                        : (eventCard.highlight ? "▶ CLIP " + root.service.highlightAge(eventCard.eventData) + " · " : ""))
                       + (eventCard.favoriteSpotlight ? "★ " : "")
                       + String(eventCard.eventData.lifecycle || "current").toUpperCase()
-                    color: eventCard.eventData.lifecycle === "voided" ? root.negativePoints : Qt.darker(root.foreground, 1.35)
+                    color: eventCard.opening
+                      ? Color.accent
+                      : (eventCard.eventData.lifecycle === "voided" ? root.negativePoints : Qt.darker(root.foreground, 1.35))
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true

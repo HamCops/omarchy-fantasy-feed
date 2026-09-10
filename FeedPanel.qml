@@ -637,6 +637,8 @@ Panel {
               ? root.feedService.isSpotlightEvent(fantasyEvent) : false
             readonly property var highlight: root.feedService
               ? root.feedService.eventHighlight(fantasyEvent) : null
+            readonly property bool opening: root.feedService
+              ? root.feedService.isOpening(fantasyEvent) : false
 
             width: ListView.view.width
             height: eventColumn.implicitHeight + Style.space(12)
@@ -645,13 +647,25 @@ Panel {
             bordered: true
             hasCursor: root.cursorActive && root.selectedIndex === index
 
+            // Acknowledge a clip launch at once: accent wash, border and a
+            // small pulse, held while mpv is still getting its window up.
+            onOpeningChanged: if (opening) openingPulse.restart()
+            SequentialAnimation {
+              id: openingPulse
+              NumberAnimation { target: eventCard; property: "scale"; to: 1.02; duration: 90 }
+              NumberAnimation { target: eventCard; property: "scale"; to: 1; duration: 160 }
+            }
+
             Rectangle {
               anchors.fill: parent
-              color: eventCard.favoriteSpotlight
-                ? Qt.rgba(root.positivePoints.r, root.positivePoints.g, root.positivePoints.b, 0.08)
-                : "transparent"
-              border.width: eventCard.favoriteSpotlight ? 2 : 0
-              border.color: root.positivePoints
+              color: eventCard.opening
+                ? Qt.rgba(Color.accent.r, Color.accent.g, Color.accent.b, 0.16)
+                : (eventCard.favoriteSpotlight
+                  ? Qt.rgba(root.positivePoints.r, root.positivePoints.g, root.positivePoints.b, 0.08)
+                  : "transparent")
+              border.width: eventCard.opening || eventCard.favoriteSpotlight ? 2 : 0
+              border.color: eventCard.opening ? Color.accent : root.positivePoints
+              Behavior on color { ColorAnimation { duration: 120 } }
             }
 
             HoverHandler {
@@ -696,12 +710,16 @@ Panel {
                 Text {
                   id: lifecycleLabel
                   anchors.right: parent.right
-                  text: (eventCard.highlight ? "▶ CLIP " + root.feedService.highlightAge(eventCard.fantasyEvent) + " · " : "")
+                  text: (eventCard.opening
+                      ? "▶ OPENING… · "
+                      : (eventCard.highlight ? "▶ CLIP " + root.feedService.highlightAge(eventCard.fantasyEvent) + " · " : ""))
                     + (eventCard.favoriteSpotlight ? "★ " : "")
                     + root.lifecycle(eventCard.fantasyEvent)
-                  color: eventCard.fantasyEvent.lifecycle === "voided"
-                    ? root.contentUrgent
-                    : (eventCard.fantasyEvent.lifecycle === "corrected" ? Color.accent : Qt.darker(root.contentForeground, 1.35))
+                  color: eventCard.opening
+                    ? Color.accent
+                    : (eventCard.fantasyEvent.lifecycle === "voided"
+                      ? root.contentUrgent
+                      : (eventCard.fantasyEvent.lifecycle === "corrected" ? Color.accent : Qt.darker(root.contentForeground, 1.35)))
                   font.family: root.contentFontFamily
                   font.pixelSize: Style.font.caption
                   font.bold: true
