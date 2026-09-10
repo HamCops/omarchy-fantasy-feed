@@ -37,6 +37,11 @@ With a league synced:
 - **Standalone window, tab 4 (`⚔ MATCHUP`)**: both lineups side by side, slot
   by slot, weekly points and last play, with ESPN's line underneath.
 - **Alerts**: opponent plays alert too, headlined `⚔ OPP`.
+- **Points filter**: `ALL` / `3+` / `6+` / `TD` beside the scoring menu (key
+  `f`). Every carry and catch scores, so the full feed is busy; the filter
+  keeps only plays worth that much to someone in the selected scoring, or
+  touchdowns. The bar, rail, leaderboard, matchup and alerts still count
+  every play.
 - **Scoring menu**: a `LEAGUE` option (`LG`) beside PPR/STD, selected
   automatically on the first sync. It applies the synced rules: ESPN's bucket
   form (1 point per *complete* 25 passing / 10 rushing / 10 receiving yards,

@@ -37,6 +37,9 @@ Item {
   }
   readonly property var latestVisibleEvent: visibleEvents.length > 0
     ? visibleEvents[visibleEvents.length - 1] : null
+  // The feed lists apply the points filter on top of the game selection.
+  // Bar, rail, totals and alerts keep seeing every play.
+  readonly property var feedEvents: filterByPoints(visibleEvents)
   // The user's own favorites and league sync (espn-mcp scripts/feed_sync.py):
   // favorites tagged side "me"/"opp" plus a league block with the scoring
   // rules. Written from outside, so the favorites file is watched rather
@@ -52,6 +55,9 @@ Item {
   readonly property int favoriteCount: favorites.length
   property string scoringMode: "ppr"
   property string alertPreset: "off"
+  // Which plays the feed lists show: every play, only plays worth 3+ or 6+
+  // points to someone (in the selected scoring mode), or touchdowns.
+  property string feedFilter: "all"
   readonly property var league: demoProfile && isObject(demoProfile.league) ? demoProfile.league : userLeague
   readonly property bool hasMatchup: league !== null && favoriteSideCount("me") > 0
   readonly property bool leagueScoring: snapshot ? snapshot.leagueScoring === true : false
@@ -94,6 +100,7 @@ Item {
     }
     return filtered
   }
+  readonly property var feedFavoriteEvents: filterByPoints(visibleFavoriteEvents)
   property bool loading: false
   property bool _refreshFailed: false
   readonly property bool stale: _refreshFailed || (snapshot ? snapshot.stale === true : false)
@@ -413,6 +420,59 @@ Item {
     if (alertPreset === "threshold3") return 3
     if (alertPreset === "threshold6") return 6
     return 0
+  }
+
+  function validFeedFilter(value) {
+    return ["all", "min3", "min6", "touchdowns"].indexOf(String(value || "")) !== -1
+  }
+
+  function setFeedFilter(value) {
+    var next = validFeedFilter(value) ? String(value) : "all"
+    if (feedFilter === next) return next
+    feedFilter = next
+    if (_favoritesLoaded) favoritesSaveTimer.restart()
+    return next
+  }
+
+  function cycleFeedFilter() {
+    var order = ["all", "min3", "min6", "touchdowns"]
+    return setFeedFilter(order[(order.indexOf(feedFilter) + 1) % order.length])
+  }
+
+  function feedFilterLabel() {
+    if (feedFilter === "min3") return "3+"
+    if (feedFilter === "min6") return "6+"
+    if (feedFilter === "touchdowns") return "TD"
+    return "ALL"
+  }
+
+  function feedThreshold() {
+    if (feedFilter === "min3") return 3
+    if (feedFilter === "min6") return 6
+    return 0
+  }
+
+  // A play passes when any participant gains or loses at least the
+  // threshold in the selected scoring mode, so a lost fumble shows too.
+  function eventPassesFeedFilter(event) {
+    if (feedFilter === "all") return true
+    if (feedFilter === "touchdowns") return eventIsTouchdown(event)
+    var threshold = feedThreshold()
+    var participants = event && event.participants && event.participants.length !== undefined
+      ? event.participants : []
+    for (var index = 0; index < participants.length; index++) {
+      if (Math.abs(pointsIn(participants[index].points)) >= threshold) return true
+    }
+    return false
+  }
+
+  function filterByPoints(source) {
+    if (feedFilter === "all") return source
+    var kept = []
+    for (var index = 0; index < source.length; index++) {
+      if (eventPassesFeedFilter(source[index])) kept.push(source[index])
+    }
+    return kept
   }
 
   function signedPoints(value) {
@@ -817,6 +877,7 @@ Item {
       scoringMode = normalizedScoringMode(settings.scoringMode)
       alertPreset = validAlertPreset(settings.alertPreset)
         ? String(settings.alertPreset) : "off"
+      feedFilter = validFeedFilter(settings.feedFilter) ? String(settings.feedFilter) : "all"
       var seen = ({})
       for (var index = 0; index < values.length; index++) {
         var item = values[index]
@@ -846,7 +907,7 @@ Item {
     var document = {
       version: 1,
       favorites: userFavorites,
-      settings: {scoringMode: scoringMode, alertPreset: alertPreset}
+      settings: {scoringMode: scoringMode, alertPreset: alertPreset, feedFilter: feedFilter}
     }
     if (userLeague) document.league = userLeague
     var text = JSON.stringify(document, null, 2) + "\n"
@@ -1175,6 +1236,8 @@ Item {
         providerEventCount: root.snapshotEvents.length,
         pendingEventCount: root.pendingEventCount,
         visibleEventCount: root.visibleEvents.length,
+        feedEventCount: root.feedEvents.length,
+        feedFilter: root.feedFilter,
         gameCount: root.games.length,
         enabledGameCount: root.enabledGameCount,
         leaderboardCount: root.leaderboard.length,
