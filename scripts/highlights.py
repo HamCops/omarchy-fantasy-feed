@@ -70,6 +70,21 @@ CLIP_HOSTS = frozenset({
 })
 
 
+def reddit_media_url(url: str) -> str:
+    """Reddit-hosted video -> its DASH manifest; anything else unchanged.
+
+    yt-dlp is refused by v.redd.it without an account, so mpv opens the
+    manifest directly. The DASH one, not HLS: Reddit's HLS playlists address
+    byte ranges inside one CMAF file, and ffmpeg's HLS demuxer reports EOF
+    after the first range or two, so a clip stopped a few seconds in. The
+    DASH manifest indexes the same files through sidx and plays to the end.
+    """
+    hosted = _VREDDIT.match(url)
+    if not hosted:
+        return url
+    return f"https://v.redd.it/{hosted.group(1)}/DASHPlaylist.mpd"
+
+
 def clip_host_allowed(url: str) -> bool:
     """True when `url` is https on an allowed clip host (or a subdomain of one)."""
     try:
@@ -108,11 +123,7 @@ def parse_feed(text: str) -> list[dict[str, Any]]:
         content = html.unescape(entry.findtext("a:content", default="", namespaces=_ATOM) or "")
         external = [u for u in _HREF.findall(content) if "reddit.com" not in u]
         media = external[0] if external else permalink
-        # Reddit-hosted video: yt-dlp is refused without an account, but the
-        # clip's HLS playlist (video + audio) is public and mpv plays it.
-        hosted = _VREDDIT.match(media)
-        if hosted:
-            media = f"https://v.redd.it/{hosted.group(1)}/HLSPlaylist.m3u8"
+        media = reddit_media_url(media)
         if not clip_host_allowed(media):
             continue
         try:
@@ -156,7 +167,13 @@ def load_cache(path: Path) -> dict[str, Any]:
         with path.open("r", encoding="utf-8") as stream:
             value = json.load(stream)
         if isinstance(value, Mapping) and isinstance(value.get("posts"), list):
-            return dict(value)
+            cache = dict(value)
+            # Posts cached before the switch to the DASH manifest still carry
+            # the HLS URL for up to POST_RETENTION; rewrite them on load.
+            for post in cache["posts"]:
+                if isinstance(post, dict) and isinstance(post.get("url"), str):
+                    post["url"] = reddit_media_url(post["url"])
+            return cache
     except (OSError, ValueError):
         pass
     return {"fetchedAt": 0, "backoffUntil": 0, "posts": []}

@@ -4,6 +4,9 @@ All notable changes to Fantasy Feed are documented here.
 
 ## [1.1.0] - 2026-09-08 (HamCops fork)
 
+- Open Reddit-hosted clips through their DASH manifest instead of the HLS
+  playlist: ffmpeg's HLS demuxer stops a few seconds into Reddit's byte-range
+  CMAF segments, so clips ended early. Cached posts are rewritten on load.
 - Only open highlight clips hosted on v.redd.it, streamable, x.com/twitter or
   YouTube over https. Any r/nfl poster could otherwise hand an arbitrary URL to
   mpv and yt-dlp; such posts are now dropped instead of matched.
