@@ -525,10 +525,11 @@ Item {
     var url = String(highlight.url)
     var command = ["mpv", "--force-window=immediate", "--really-quiet", "--keep-open=yes",
       "--title=Fantasy Feed · " + String(highlight.title || "highlight")]
-    // A direct HLS playlist (Reddit-hosted video) needs no yt-dlp; everything
-    // else (streamable, x.com, YouTube) is resolved through it. Decide by
-    // host, not by ".m3u8" appearing somewhere in the URL.
-    if (/^https:\/\/v\.redd\.it\/[A-Za-z0-9]+\/HLSPlaylist\.m3u8$/.test(url)) command.push("--no-ytdl")
+    // A Reddit-hosted clip is its DASH manifest and needs no yt-dlp (which
+    // v.redd.it refuses anyway); everything else (streamable, x.com,
+    // YouTube) is resolved through it. Match the exact URL shape, not a
+    // substring anywhere in the URL.
+    if (/^https:\/\/v\.redd\.it\/[A-Za-z0-9]+\/DASHPlaylist\.mpd$/.test(url)) command.push("--no-ytdl")
     else command.push("--ytdl-format=bestvideo[height<=1080]+bestaudio/best")
     command.push(url)
     return command
