@@ -22,7 +22,9 @@ import highlights
 
 
 SCHEMA_VERSION = 1
-PARSER_VERSION = "espn-narrative-v1"
+# Bump when the narrative parser learns new text: plays rejected under an
+# older version are re-parsed on the next refresh instead of staying skipped.
+PARSER_VERSION = "espn-narrative-v2"
 DEFAULT_EVENT_CAP = 200
 DEFAULT_SKIPPED_CAP = 200
 SOURCE_STATES = {"live", "scheduled", "final", "idle", "offline", "malformed"}
@@ -325,7 +327,8 @@ _NAME = r"[A-Z]\.[A-Za-z][A-Za-z.'-]*"
 _TEAM = r"[A-Z]{2,4}"
 _LANE = r"(?:left end|left tackle|left guard|up the middle|right guard|right tackle|right end)"
 _PASS_DEPTH = r"(?:(?:short|deep) (?:left|middle|right) )?"
-_PASS_LOCATION = rf"(?:(?:pushed ob at|to) {_TEAM} \d+ )?"
+_PASS_LOCATION = rf"(?:(?:pushed ob at|ran ob at|to) {_TEAM} \d+ )?"
+_RUSH_LOCATION = _PASS_LOCATION
 _TACKLER = r"(?: \([^()]+\))?"
 _PAT = rf"(?: {_NAME} extra point is GOOD(?:, Center-{_NAME}, Holder-{_NAME})?\.)?"
 
@@ -355,19 +358,19 @@ _PASS_TOUCHDOWN_PATTERN = re.compile(
 
 _RUSH_PATTERNS = (
     re.compile(
-        rf"(?P<runner>{_NAME}) {_LANE} (?:to {_TEAM} \d+ )?for "
+        rf"(?P<runner>{_NAME}) {_LANE} {_RUSH_LOCATION}for "
         rf"(?P<yards>-?\d+) yards?{_TACKLER}\."
     ),
     re.compile(rf"(?P<runner>{_NAME}) rushes for (?P<yards>-?\d+) yards?\."),
 )
 
 _SCRAMBLE_PATTERN = re.compile(
-    rf"(?P<runner>{_NAME}) scrambles {_LANE} (?:to {_TEAM} \d+ )?for "
+    rf"(?P<runner>{_NAME}) scrambles {_LANE} {_RUSH_LOCATION}for "
     rf"(?P<yards>-?\d+) yards?{_TACKLER}\."
 )
 
 _RUSH_TOUCHDOWN_PATTERN = re.compile(
-    rf"(?P<runner>{_NAME}) {_LANE} (?:to {_TEAM} \d+ )?for "
+    rf"(?P<runner>{_NAME}) {_LANE} {_RUSH_LOCATION}for "
     rf"(?P<yards>-?\d+) yards?, TOUCHDOWN\.{_PAT}"
 )
 
@@ -841,6 +844,22 @@ def _review_result(text: str) -> str:
     return text
 
 
+# ESPN prepends formation notes to the play itself ("G.Van Roten reported in
+# as eligible.  D.Maye pass ... TOUCHDOWN."), and live revisions sometimes
+# arrive with leading whitespace or doubled spaces. None of that changes the
+# stat line, so peel it off before the narrative patterns see the text.
+_ELIGIBLE_PREAMBLE = re.compile(r"^(?:[A-Z]\.[A-Za-z.'\- ]+? reported in as eligible\.\s*)+")
+# "(Shotgun) ", "(No Huddle, Shotgun) ": a formation note, never part of the play.
+_FORMATION_PREFIX = re.compile(r"^\([^()]*\) ")
+
+
+def _narrative(text: str) -> str:
+    text = " ".join(text.split())
+    text = _ELIGIBLE_PREAMBLE.sub("", text)
+    text = _FORMATION_PREFIX.sub("", text)
+    return _review_result(text)
+
+
 def parse_play(raw: Mapping[str, Any], athlete_index: AthleteIndex) -> PlayResult:
     """Parse one provider play. Unsupported or contradictory input fails closed."""
     if not isinstance(raw, Mapping):
@@ -866,7 +885,7 @@ def parse_play(raw: Mapping[str, Any], athlete_index: AthleteIndex) -> PlayResul
     if parsers is None:
         return _rejected(common, "unknown_play_type")
 
-    result_text = _review_result(text)
+    result_text = _narrative(text)
     offense_team = _required_string(raw.get("offenseTeam"), "play.offenseTeam")
     candidate = next(
         (candidate for parser in parsers if (candidate := parser(result_text, offense_team)) is not None),
@@ -1138,6 +1157,9 @@ def reconcile_frame(
         previous_week = None
     active_events: dict[PlayKey, dict[str, Any]] = {}
     latest_revision: dict[PlayKey, str] = {}
+    # Parser version that last rejected a play. A rejection is only final for
+    # the parser that made it; a newer parser gets another look at the text.
+    rejected_by: dict[PlayKey, str] = {}
     games: dict[str, dict[str, Any]] = {}
     skipped: list[dict[str, Any]] = []
 
@@ -1151,9 +1173,11 @@ def reconcile_frame(
             raise FixtureError("snapshot.skipped contains a non-object")
         copied = dict(item)
         skipped.append(copied)
-        latest_revision[_normalized_item_key(copied)] = _required_string(
+        skipped_key = _normalized_item_key(copied)
+        latest_revision[skipped_key] = _required_string(
             copied.get("revision"), "snapshot skipped.revision"
         )
+        rejected_by[skipped_key] = str(copied.get("parserVersion") or "")
     for item in previous.get("events", []):
         if not isinstance(item, Mapping):
             raise FixtureError("snapshot.events contains a non-object")
@@ -1177,11 +1201,18 @@ def reconcile_frame(
             raise FixtureError(f"fixture frame plays[{play_index}]: {error}") from error
         previous_revision = latest_revision.get(result.key)
         if previous_revision == result.revision:
-            continue
+            # Unchanged text; but an old rejection deserves a retry now that
+            # the parser has moved on. Events already parsed stay as they are.
+            if result.key in active_events or rejected_by.get(result.key) == PARSER_VERSION:
+                continue
+            if isinstance(result, RejectedPlay):
+                continue  # same verdict from the new parser; keep the old record
 
         prior_event = active_events.get(result.key)
         if isinstance(result, AttributedPlay):
-            lifecycle = "corrected" if previous_revision is not None else "current"
+            # "corrected" means a version people already saw has changed; a
+            # play that was only ever rejected before arrives as "current".
+            lifecycle = "corrected" if prior_event is not None else "current"
             active_events[result.key] = _event_json(result, lifecycle, previous_revision)
         else:
             skipped.append(_skipped_json(result))
@@ -1190,6 +1221,10 @@ def reconcile_frame(
                     prior_event, result, previous_revision or prior_event["revision"]
                 )
         latest_revision[result.key] = result.revision
+        if isinstance(result, RejectedPlay):
+            rejected_by[result.key] = PARSER_VERSION
+        else:
+            rejected_by.pop(result.key, None)
 
     events = sorted(
         active_events.values(),
@@ -1376,7 +1411,8 @@ def refresh_live(
     cached = load_last_good_cache(cache_path)
     try:
         fixture = espn.collect_live(
-            cached, get_json=get_json, observed_at=observed_at
+            cached, get_json=get_json, observed_at=observed_at,
+            parser_version=PARSER_VERSION,
         )
         frames = _validated_frames(fixture)
         if len(frames) != 1:

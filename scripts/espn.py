@@ -882,7 +882,14 @@ def _fetch_many(urls: Sequence[str], get_json: GetJson) -> dict[str, Mapping[str
         return results
 
 
-def _known_source_revisions(snapshot: Mapping[str, Any] | None) -> dict[tuple[str, str, str], str]:
+def _known_source_revisions(
+    snapshot: Mapping[str, Any] | None, parser_version: str | None = None
+) -> dict[tuple[str, str, str], str]:
+    """Provider revisions the snapshot has already judged.
+
+    A rejection made by an older parser version does not count: that play is
+    fetched again so the current parser can have a go at its text.
+    """
     known: dict[tuple[str, str, str], str] = {}
     if not isinstance(snapshot, Mapping):
         return known
@@ -892,6 +899,9 @@ def _known_source_revisions(snapshot: Mapping[str, Any] | None) -> dict[tuple[st
             continue
         for item in collection:
             if not isinstance(item, Mapping):
+                continue
+            if (collection_name == "skipped" and parser_version is not None
+                    and item.get("parserVersion") != parser_version):
                 continue
             key = (item.get("provider"), item.get("gameId"), item.get("playId"))
             revision = item.get("sourceRevision")
@@ -914,8 +924,13 @@ def collect_live(
     *,
     get_json: GetJson | None = None,
     observed_at: str | None = None,
+    parser_version: str | None = None,
 ) -> dict[str, Any]:
-    """Fetch one live provider observation as the same fixture shape used by replay."""
+    """Fetch one live provider observation as the same fixture shape used by replay.
+
+    `parser_version` is the caller's narrative parser; plays the snapshot
+    rejected under a different version are treated as unseen.
+    """
     request_json = get_json or default_get_json
     scoreboard = extract_scoreboard(request_json(SCOREBOARD_URL))
     games = scoreboard["games"]
@@ -954,7 +969,7 @@ def collect_live(
         positions.update(extract_roster_positions(roster_payloads[roster_url(team_id)]))
     weekly_players = _aggregate_weekly_players(weekly_game_rows, positions)
 
-    known_revisions = _known_source_revisions(previous_snapshot)
+    known_revisions = _known_source_revisions(previous_snapshot, parser_version)
     supported_window: list[dict[str, Any]] = []
     diagnostic_window: list[dict[str, Any]] = []
     for play in extracted_plays:

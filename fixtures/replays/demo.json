@@ -656,6 +656,39 @@
             "rushing_touchdown": 1,
             "kick_extra_points_made": 1
           }
+        },
+        {
+          "provider": "espn",
+          "gameId": "401873302",
+          "id": "eligible-preamble-touchdown",
+          "sequenceNumber": 91,
+          "modified": "2026-08-28T20:13:30Z",
+          "type": {
+            "text": "Passing Touchdown"
+          },
+          "text": "K.Zeitler reported in as eligible.  T.Huntley pass short left to C.Moore for 2 yards, TOUCHDOWN. T.Loop extra point is GOOD, Center-N.Moore, Holder-R.Eckley.",
+          "period": {
+            "number": 4
+          },
+          "clock": {
+            "displayValue": "02:10"
+          },
+          "wallclock": "2026-08-28T20:13:30Z",
+          "away": "CLE",
+          "home": "BLT",
+          "offenseTeam": "CLE",
+          "scoringPlay": true,
+          "isPenalty": false,
+          "isTurnover": false,
+          "statYardage": 2,
+          "officialStats": {
+            "passing_yards": 2,
+            "passing_touchdown": 1,
+            "reception": 1,
+            "receiving_yards": 2,
+            "receiving_touchdown": 1,
+            "kick_extra_points_made": 1
+          }
         }
       ],
       "weeklyPlayers": [
