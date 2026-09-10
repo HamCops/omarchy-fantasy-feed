@@ -535,12 +535,24 @@ Item {
     return command
   }
 
-  // Opens the clip in mpv (yt-dlp resolves streamable, x.com, v.redd.it).
+  // The play whose clip was just launched. mpv takes a moment to show a
+  // window, so surfaces flash this play for a few seconds to acknowledge the
+  // click (or Enter/v) before anything else happens.
+  property string openingToken: ""
+  readonly property int openingHoldMilliseconds: 3000
+
+  function isOpening(event) {
+    return openingToken !== "" && eventIdentity(event) === openingToken
+  }
+
+  // Opens the clip in mpv (yt-dlp resolves streamable, x.com, YouTube).
   // Returns false when the play has no clip yet.
   function openHighlight(event) {
     var highlight = eventHighlight(event)
     if (!highlight) return false
     Quickshell.execDetached(highlightCommand(highlight))
+    openingToken = eventIdentity(event)
+    openingTimer.restart()
     return true
   }
 
@@ -1049,6 +1061,13 @@ Item {
   }
 
   Timer {
+    id: openingTimer
+    interval: root.openingHoldMilliseconds
+    repeat: false
+    onTriggered: root.openingToken = ""
+  }
+
+  Timer {
     id: countdownTimer
     interval: 1000
     repeat: true
@@ -1136,6 +1155,7 @@ Item {
     pollTimer.stop()
     arrivalTimer.stop()
     spotlightTimer.stop()
+    openingTimer.stop()
     countdownTimer.stop()
     watchdog.stop()
     favoritesSaveTimer.stop()

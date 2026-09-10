@@ -4,6 +4,8 @@ All notable changes to Fantasy Feed are documented here.
 
 ## [1.1.0] - 2026-09-08 (HamCops fork)
 
+- Acknowledge a clip click at once: the play flashes in the accent colour,
+  pulses and reads `▶ OPENING…` for three seconds while mpv starts.
 - Open Reddit-hosted clips through their DASH manifest instead of the HLS
   playlist: ffmpeg's HLS demuxer stops a few seconds into Reddit's byte-range
   CMAF segments, so clips ended early. Cached posts are rewritten on load.
