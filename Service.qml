@@ -40,7 +40,7 @@ Item {
   // The feed lists apply the points filter on top of the game selection.
   // Bar, rail, totals and alerts keep seeing every play.
   readonly property var feedEvents: filterByPoints(visibleEvents)
-  // The user's own favorites and league sync (espn-mcp scripts/feed_sync.py):
+  // The user's own favorites and league sync (scripts/league_sync.py):
   // favorites tagged side "me"/"opp" plus a league block with the scoring
   // rules. Written from outside, so the favorites file is watched rather
   // than read once.

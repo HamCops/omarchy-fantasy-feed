@@ -1,12 +1,12 @@
 # Fantasy Feed (league-synced fork)
 
 This fork of [studioxvii/omarchy-fantasy-feed](https://github.com/studioxvii/omarchy-fantasy-feed)
-adds a **league sync**: an external script writes your ESPN fantasy matchup
-into the plugin's favorites file, and the plugin turns that into a live
-head-to-head -- your starters versus your opponent's, scored by your league's
-actual rules, with ESPN's own totals in the bar. The plugin itself still needs
-no account and never sees your credentials; the sync lives in
-[espn-mcp](https://github.com/HamCops/espn-mcp) (`scripts/feed_sync.py`).
+adds a **league sync**: `scripts/league_sync.py` reads your ESPN fantasy
+matchup and writes it into the plugin's favorites file, and the plugin turns
+that into a live head-to-head -- your starters versus your opponent's, scored
+by your league's actual rules, with ESPN's own totals in the bar. The feed
+itself still needs no account; only the sync script reads your ESPN session
+cookies, from a file of its own outside the Omarchy config tree.
 
 Install from this fork:
 
@@ -16,7 +16,25 @@ omarchy plugin add "https://github.com/HamCops/omarchy-fantasy-feed.git" --enabl
 
 ## League sync
 
-`feed_sync.py` writes two files, both watched by the plugin, so a sync applies
+```sh
+python3 scripts/league_sync.py --init     # writes ~/.config/fantasy-feed/espn.json (mode 600)
+$EDITOR ~/.config/fantasy-feed/espn.json  # leagueId, teamId, season, espn_s2, swid
+python3 scripts/league_sync.py --once     # sync now
+python3 scripts/league_sync.py --install-service && \
+  systemctl --user daemon-reload && systemctl --user enable --now fantasy-feed-sync.service
+```
+
+`leagueId` and `teamId` come from your league and roster URLs on
+fantasy.espn.com; `espn_s2` and `swid` are the two cookies a logged-in browser
+holds for fantasy.espn.com (DevTools > Application > Cookies). They are session
+credentials: the file is created mode 600 and lives under
+`$XDG_CONFIG_HOME/fantasy-feed/`, not `omarchy/`, so a dotfiles sync of your
+Omarchy config never carries them. The script sends them to
+`lm-api-reads.fantasy.espn.com` only and follows no redirects. The service
+re-syncs every 15 minutes while nothing is on and every minute while the feed
+reports games live. Standard library only, like the plugin's other scripts.
+
+`league_sync.py` writes two files, both watched by the plugin, so a sync applies
 without restarting the shell:
 
 - `~/.config/omarchy/fantasy-feed.json` -- the existing favorites file. Each

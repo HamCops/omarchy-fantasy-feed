@@ -756,7 +756,7 @@ Item {
             visible: root.activeTab === "matchup" && !root.hasMatchup
             width: parent.width - Style.space(40)
             horizontalAlignment: Text.AlignHCenter
-            text: "No league matchup synced.\nRun espn-mcp's scripts/feed_sync.py to load this week's lineups."
+            text: "No league matchup synced.\nRun scripts/league_sync.py to load this week's lineups."
             color: Qt.darker(root.foreground, 1.35)
             font.family: root.fontFamily
             font.pixelSize: Style.font.body

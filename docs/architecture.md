@@ -26,6 +26,13 @@
         per monitor      per monitor       one normal window
 ```
 
+A second helper, `scripts/league_sync.py`, is the league side: it reads the
+user's ESPN league (with the session cookies in
+`$XDG_CONFIG_HOME/fantasy-feed/espn.json`) and writes the favorites file and
+`$XDG_CACHE_HOME/fantasy-feed/league.json`, which `Service.qml` watches. It
+runs on its own timer (a systemd user unit), never through `Service.qml`, so
+the feed keeps working with no league configured.
+
 The Python helper owns data correctness; QML owns presentation. `Service.qml`
 is loaded once for the plugin and is the only owner of the data process and
 polling timers.

@@ -2,6 +2,13 @@
 
 All notable changes to Fantasy Feed are documented here.
 
+## [Unreleased]
+
+- The league sync is part of the plugin: `scripts/league_sync.py` replaces
+  espn-mcp's `feed_sync.py`, standard library only, with its own credentials
+  file at `~/.config/fantasy-feed/espn.json` (`--init` writes the template,
+  `--install-service` the systemd unit). Same two output files, same shape.
+
 ## [1.1.0] - 2026-09-08 (HamCops fork)
 
 - Parse plays ESPN wraps in extra text: a "reported in as eligible" preamble

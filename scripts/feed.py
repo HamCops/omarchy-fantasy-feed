@@ -148,7 +148,7 @@ def score_stats(stats: Iterable[StatDelta]) -> tuple[int, int]:
 
 # --- League scoring ---------------------------------------------------------
 #
-# A league sync (espn-mcp scripts/feed_sync.py) writes the league's own rules
+# The league sync (scripts/league_sync.py) writes the league's own rules
 # into the favorites file as `league.scoring`, keyed by the same stat names as
 # SCORING_TABLE: {"passing_yards": {"points": 1, "per": 25}, ...}. `per` > 1
 # means ESPN's bucket form -- one point per *complete* 25 (or 10) yards, floor
