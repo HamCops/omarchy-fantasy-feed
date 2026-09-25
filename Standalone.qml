@@ -298,6 +298,9 @@ Item {
 
   FloatingWindow {
     id: window
+    // The plugin is keepLoaded, so this window exists from shell start;
+    // stay hidden until open() shows it.
+    visible: false
     title: "Fantasy Feed"
     color: root.background
     implicitWidth: 860

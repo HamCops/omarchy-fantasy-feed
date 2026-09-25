@@ -2,6 +2,13 @@
 
 All notable changes to Fantasy Feed are documented here.
 
+## [Unreleased]
+
+- The standalone window no longer appears on its own when the shell starts.
+  The plugin is `keepLoaded`, so its `FloatingWindow` was created at shell
+  start with Quickshell's default `visible: true`; it now starts hidden and
+  only `open()` shows it.
+
 ## [1.0.1] - 2026-08-30
 
 - Keep the submitted plugin tree production-only while retaining the small
