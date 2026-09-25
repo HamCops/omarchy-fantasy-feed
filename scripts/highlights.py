@@ -37,10 +37,15 @@ USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 )
-FETCH_INTERVAL = 45          # seconds between feed reads
+FETCH_INTERVAL = 45          # seconds between feed reads while a game is live
+FINAL_FETCH_INTERVAL = 600   # seconds between reads after the slate goes final
+# Keep looking for clips this long after a play. r/nfl's newest-100 listing
+# reaches back a day or more overnight, so a game missed live (laptop asleep,
+# no network) still picks up its clips the next morning.
+BACKFILL_HORIZON = 36 * 3600
 FAILURE_BACKOFF = 300        # seconds to wait after a refused or failed read
-POST_RETENTION = 8 * 3600    # how long a post stays in the local cache
-POST_CAP = 400
+POST_RETENTION = 3 * 24 * 3600  # how long a post stays in the local cache
+POST_CAP = 1000
 RESPONSE_LIMIT = 1_500_000   # bytes
 TIMEOUT = 6.0
 
@@ -324,12 +329,14 @@ def match_highlights(events: list[dict[str, Any]], posts: list[dict[str, Any]], 
 def _worth_fetching(snapshot: Mapping[str, Any], now: float) -> bool:
     if snapshot.get("sourceState") == "live":
         return True
-    # A clip for the final play of a game can land after the slate goes final.
+    # After the slate goes final, keep reading (slowly) while any recent play
+    # is still without a clip: the final play's clip lands late, and a game
+    # missed live gets its clips backfilled from the listing's tail.
     for event in snapshot.get("events", []):
         if event.get("highlight") or event.get("lifecycle") == "voided":
             continue
         played_at = _wallclock(event)
-        if played_at is not None and 0 <= now - played_at <= TRAIL_SECONDS:
+        if played_at is not None and 0 <= now - played_at <= BACKFILL_HORIZON:
             return True
     return False
 
@@ -342,7 +349,8 @@ def attach(snapshot: dict[str, Any], *, cache_path: Path | None = None,
     cache = load_cache(path)
     status: dict[str, Any] = {"source": "reddit", "fetched": False, "error": ""}
     events = snapshot.get("events", [])
-    due = (now - float(cache.get("fetchedAt", 0))) >= FETCH_INTERVAL
+    interval = FETCH_INTERVAL if snapshot.get("sourceState") == "live" else FINAL_FETCH_INTERVAL
+    due = (now - float(cache.get("fetchedAt", 0))) >= interval
     if due and now >= float(cache.get("backoffUntil", 0)) and _worth_fetching(snapshot, now):
         try:
             fresh = fetch()

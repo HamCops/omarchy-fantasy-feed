@@ -91,9 +91,12 @@ play), with touchdown plays preferring titles that say so. It is a best
 guess, not a proof; a miss costs a wrong video, never wrong points.
 
 Reddit's JSON API refuses non-browser clients, so `scripts/highlights.py`
-reads the subreddit's public Atom feed: at most one read every 45 seconds,
-only while games are live or recent plays are still unmatched, with a
-five-minute backoff on any refusal. Posts are cached for eight hours in
+reads the subreddit's public Atom feed: at most one read every 45 seconds
+while a game is live, one every 10 minutes for up to 36 hours afterwards
+while any play is still without a clip, with a five-minute backoff on any
+refusal. The listing's newest 100 posts reach back a day or more overnight,
+so a game missed live (laptop asleep, no network) still picks up its clips
+at the next refresh. Posts are cached for three days in
 `~/.cache/fantasy-feed/highlights.json`. A feed failure never fails a refresh.
 
 [![CI](https://github.com/studioxvii/omarchy-fantasy-feed/actions/workflows/ci.yml/badge.svg)](https://github.com/studioxvii/omarchy-fantasy-feed/actions/workflows/ci.yml)

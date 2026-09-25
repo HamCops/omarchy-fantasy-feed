@@ -4,6 +4,12 @@ All notable changes to Fantasy Feed are documented here.
 
 ## [Unreleased]
 
+- Highlight clips keep arriving after a game is final: the r/nfl feed is
+  read every 10 minutes for up to 36 hours while any play still lacks a
+  clip, instead of stopping 25 minutes after the last play, and posts are
+  cached for three days instead of eight hours. A game missed live picks up
+  its clips at the next refresh.
+
 - The play parser accepts ESPN's two-letter initials (`Bi.Robinson` and
   `Br.Robinson` on one roster), resolves players whose roster name carries a
   suffix (`M.Penix` for Michael Penix Jr.), and reads an interception return
