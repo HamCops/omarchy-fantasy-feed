@@ -4,6 +4,13 @@ All notable changes to Fantasy Feed are documented here.
 
 ## [Unreleased]
 
+- The play parser accepts ESPN's two-letter initials (`Bi.Robinson` and
+  `Br.Robinson` on one roster), resolves players whose roster name carries a
+  suffix (`M.Penix` for Michael Penix Jr.), and reads an interception return
+  that is not pushed out of bounds. Every Falcons play in GB-ATL week 3 was
+  rejected before this; the parser version is bumped so cached rejections are
+  re-read.
+
 - The standalone window no longer appears on its own when the shell starts.
   The plugin is `keepLoaded`, so its `FloatingWindow` was created at shell
   start with Quickshell's default `visible: true`; it now starts hidden and
