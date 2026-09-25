@@ -4,6 +4,11 @@ All notable changes to Fantasy Feed are documented here.
 
 ## [Unreleased]
 
+- The standalone window no longer appears on its own when the shell starts.
+  The plugin is `keepLoaded`, so its `FloatingWindow` was created at shell
+  start with Quickshell's default `visible: true`; it now starts hidden and
+  only `open()` shows it.
+
 - Feed rows pick up a clip that lands after the play. A highlight attaches
   without a new play revision, so the presentation queue treated the play
   as already shown and only the notification carried the clip; presented

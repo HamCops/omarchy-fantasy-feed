@@ -347,6 +347,8 @@ Item {
   }
 
   FloatingWindow {
+    // Loaded at shell start (keepLoaded); stay hidden until summoned.
+    visible: false
     id: window
     title: "Fantasy Feed"
     color: root.background
