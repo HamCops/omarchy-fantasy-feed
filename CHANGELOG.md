@@ -2,6 +2,15 @@
 
 All notable changes to Fantasy Feed are documented here.
 
+## [Unreleased]
+
+- The play parser accepts ESPN's two-letter initials (`Bi.Robinson` and
+  `Br.Robinson` on one roster), resolves players whose roster name carries a
+  suffix (`M.Penix` for Michael Penix Jr.), and reads an interception return
+  that is not pushed out of bounds. Every Falcons play in GB-ATL week 3 was
+  rejected before this; the parser version is bumped so cached rejections are
+  re-read.
+
 ## [1.0.1] - 2026-08-30
 
 - Keep the submitted plugin tree production-only while retaining the small

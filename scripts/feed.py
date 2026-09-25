@@ -19,7 +19,7 @@ import espn
 
 
 SCHEMA_VERSION = 1
-PARSER_VERSION = "espn-narrative-v1"
+PARSER_VERSION = "espn-narrative-v2"
 DEFAULT_EVENT_CAP = 200
 DEFAULT_SKIPPED_CAP = 200
 SOURCE_STATES = {"live", "scheduled", "final", "idle", "offline", "malformed"}
@@ -175,7 +175,9 @@ def stat_delta(key: str, value: int) -> StatDelta:
     return StatDelta(key, value, labels[key])
 
 
-_NAME = r"[A-Z]\.[A-Za-z][A-Za-z.'-]*"
+# ESPN disambiguates teammates sharing an initial and surname with a
+# two-letter initial: "Bi.Robinson" and "Br.Robinson" on the same roster.
+_NAME = r"[A-Z][a-z]?\.[A-Za-z][A-Za-z.'-]*"
 _TEAM = r"[A-Z]{2,4}"
 _LANE = r"(?:left end|left tackle|left guard|up the middle|right guard|right tackle|right end)"
 _PASS_DEPTH = r"(?:(?:short|deep) (?:left|middle|right) )?"
@@ -229,7 +231,7 @@ _INTERCEPTION_PATTERN = re.compile(
     rf"(?:\(Shotgun\) )?(?P<passer>{_NAME}) pass {_PASS_DEPTH}intended for "
     rf"(?P<receiver>{_NAME}) INTERCEPTED by (?P<defender>{_NAME})"
     rf"(?: at {_TEAM} \d+)?\."
-    rf"(?: (?P=defender) pushed ob at {_TEAM} \d+ for -?\d+ yards?{_TACKLER}\.)?"
+    rf"(?: (?P=defender) {_PASS_LOCATION}for -?\d+ yards?{_TACKLER}\.)?"
 )
 
 _CATCH_FUMBLE_PATTERN = re.compile(
@@ -632,6 +634,9 @@ def _official_stats(raw: Mapping[str, Any]) -> dict[str, int] | None:
     return result
 
 
+_NAME_SUFFIX = re.compile(r"\s+(?:Jr|Sr|II|III|IV|V)\.?$", re.IGNORECASE)
+
+
 def build_athlete_index(entries: Any) -> AthleteIndex:
     """Index structured boxscore athletes by team and ESPN narrative alias."""
     if not isinstance(entries, list):
@@ -651,12 +656,20 @@ def build_athlete_index(entries: Any) -> AthleteIndex:
             entry.get("displayName"), f"fixture.athletes[{position}].displayName"
         )
         team = _required_string(entry.get("team"), f"fixture.athletes[{position}].team")
-        alias = f"{first_name[0].upper()}.{last_name}"
-        aliases = index.setdefault((team, alias), {})
-        known_name = aliases.get(athlete_id)
-        if known_name is not None and known_name != display_name:
-            raise FixtureError(f"athlete {athlete_id} has conflicting display names")
-        aliases[athlete_id] = display_name
+        # Play text drops generational suffixes ("M.Penix" for Michael Penix
+        # Jr.), and uses a two-letter initial when teammates share the
+        # one-letter alias ("Bi.Robinson" / "Br.Robinson"). Index both
+        # spellings; the one-letter key stays ambiguous when it collides.
+        surname = _NAME_SUFFIX.sub("", last_name).strip() or last_name
+        candidate_aliases = {f"{first_name[0].upper()}.{surname}"}
+        if len(first_name) >= 2:
+            candidate_aliases.add(f"{first_name[0].upper()}{first_name[1].lower()}.{surname}")
+        for alias in candidate_aliases:
+            aliases = index.setdefault((team, alias), {})
+            known_name = aliases.get(athlete_id)
+            if known_name is not None and known_name != display_name:
+                raise FixtureError(f"athlete {athlete_id} has conflicting display names")
+            aliases[athlete_id] = display_name
     return {
         key: tuple(sorted(values.items()))
         for key, values in index.items()
