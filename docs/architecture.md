@@ -50,7 +50,7 @@ Fetch and normalize one live observation:
 python3 scripts/feed.py --once
 ```
 
-Replay the checked-in demo without network access, optionally stopping after a
+Replay the checked-in fixture without network access, optionally stopping after a
 zero-based frame:
 
 ```sh
@@ -76,7 +76,10 @@ modes emit one normalized JSON document on stdout and diagnostics on stderr.
 `scripts/espn.py` is the only module that understands ESPN wire data. One live
 collection does the following:
 
-1. Fetches the NFL scoreboard and normalizes game/status metadata.
+1. Fetches the NFL scoreboard and normalizes game/status metadata. When every
+   game on ESPN's default slate is final and the last kickoff is at least
+   `WEEK_ROLLOVER_HOURS` behind, it fetches the following calendar week's
+   scoreboard (`?seasontype=&week=`) and observes that slate instead.
 2. Fetches eligible game summaries concurrently with at most eight workers.
 3. Extracts stable athlete IDs from boxscore statistics, complete supported
    weekly player totals, and plays from completed plus current drive summaries.
@@ -202,8 +205,7 @@ normalized and capped before entering stale snapshots or stderr.
 Omarchy injects `manifest.__sourceDir`; the service waits for that value before
 starting. It executes Python with an argument array, never interpolated shell
 text, and permits one child process at a time. Repeated manual refresh requests
-while a live refresh is running return `already refreshing`; a demo/live mode
-switch is queued and starts after the current helper exits.
+while a live refresh is running return `already refreshing`.
 
 The service validates schema version and collection shapes before accepting
 stdout. Exit status `0` accepts a fresh snapshot, while `10` accepts the stale
@@ -215,7 +217,7 @@ Fresh provider state is applied immediately, but event presentation is staged
 through a shared service-owned queue. New `(eventId, revision)` tokens release
 at 600 ms under normal load, 300 ms during catch-up, and 160 ms for a large
 backlog. A favorite-player arrival holds the live edge and spotlight for 2.6
-seconds. Initial hydration plus mode/week changes bypass the animation so an
+seconds. Initial hydration plus week changes bypass the animation so an
 existing 200-play cache never replays on startup. Each presentation surface can
 pause follow mode independently; it preserves the reading position and counts
 newly revealed cards until the reader returns to the live edge.
@@ -237,32 +239,34 @@ final game and a future scheduled game share one slate. A successful refresh
 resets failure backoff; manual refresh remains available during every wait.
 
 Component destruction stops timers, the watchdog, and any active helper. The
-IPC target `io.github.studioxvii.fantasy-feed` exposes `status`, `refresh`,
-`demo`, and `live`. Status includes mode, loading/stale state, source state,
+IPC target `io.github.studioxvii.fantasy-feed` exposes `status` and `refresh`.
+Status includes loading/stale state, source state,
 event count, last
 update/error, countdown and reason for the next poll, and consecutive failure
 count.
 
 ## UI contract
 
-`BarWidget.qml` renders a stable source-state/favorite-signal capsule. During a
-favorite arrival the capsule temporarily names the player and selected scoring
-delta;
-the newest raw play remains in its tooltip. Vertical bars show the glyph only.
+`BarWidget.qml` renders a stable text capsule: the two matchup scores, yours
+first, or the source state. During a favorite arrival the capsule temporarily
+names the player and points delta. It has no tooltip. Vertical bars show `FF`.
 Stale state is explicit. Left click toggles `FeedPanel.qml`, and middle click
 requests an optional immediate shared refresh.
 
 The panel is presentation-only: it contains no process, timer, provider, cache,
 or parser logic. It uses `KeyboardPanel`, `PanelKeyCatcher`, and a virtualized
 `ListView`; renders newest events first; and marks corrected and voided
-lifecycle states. Event cards use compact outer padding. A themed PPR/STD
-dropdown selects the score inserted in parentheses directly after each
-affected player's first name occurrence in the provider play sentence; the
-singleton service persists that scoring mode and every surface applies it to
-inline points, player pulses, alerts, and leaderboard sort. Raw play text is never line-capped, so narrower
+lifecycle states. Event cards use compact outer padding. The league's points
+(standard when no league is synced) are inserted in parentheses directly after
+each affected player's first name occurrence in the provider play sentence;
+every surface uses the same `league` points key for inline points, player
+pulses, alerts, and leaderboard sort. Raw play text is never line-capped, so narrower
 surfaces wrap instead of dropping context. Arrow keys and `j`/`k` move the
-monitor-local selection, `r` refreshes, `d` switches demo/live, `o` opens the
-standalone window, and `Esc` closes. The standalone leaderboard also filters
+monitor-local selection, `r` refreshes, `o` opens the standalone window, and
+`Esc` closes. Play rows are separated by hairlines; a row is tagged only for
+a clip, a favorite spotlight, or a corrected/voided lifecycle. The standalone
+window has three tabs (feed, matchup, leaders) and a `★ MINE` toggle (`m`)
+that narrows the feed to favorite and lineup players. The standalone leaderboard also filters
 by player name, team, or position, with `/` focusing its search field.
 
 `GameSelector.qml` is a shared presentation component for the compact and
@@ -273,8 +277,7 @@ rows retain their game IDs so the same selection also filters the leaderboard.
 Each compact two-line matchup chip renders `AWAY score–score HOME` and provider
 status; live games prefer the explicit period plus remaining clock. If the
 possessing team has a favorite player and the provider marks the situation as
-red zone, the chip gains an amber `★ RZ` state and exposes down-and-distance in
-its tooltip.
+red zone, the chip gains an amber `★ RZ` state.
 
 `FavoritePulseRail.qml` is shared by compact and standalone feed surfaces. It
 joins persisted favorite identities with weekly leaderboard totals, the newest
@@ -292,9 +295,8 @@ derives the favorites-only feed from normalized participant IDs. Favorite
 controls and structured weekly stat deltas live on leaderboard rows, keeping
 the play feed to one scored sentence per event.
 
-The same local settings document stores the alert preset (`off`, every favorite
-play, favorite touchdowns, 3+ points, or 6+ points). A qualifying staged event
-uses an argv-only `Quickshell.execDetached` call to Omarchy's low-urgency
+Every newly staged play involving one of the user's own players (synced
+`side: "me"` starters and hand-starred favorites; never the opponent) uses an argv-only `Quickshell.execDetached` call to Omarchy's low-urgency
 notification sender. Hidden games are excluded and Do Not Disturb remains in
 control. The toast's persisted click argv summons the standalone favorites view
 and positions the exact event token; no shell command string is constructed.
@@ -311,7 +313,7 @@ git diff --check
 ```
 
 The submitted default branch contains the runtime, one deterministic offline
-demo fixture, documentation, and marketplace media. The fuller historical test
+replay fixture, documentation, and marketplace media. The fuller historical test
 and load harness is retained on the repository's `development` branch rather
 than installed with the plugin. Runtime screenshots and compositor checks
 remain explicit release gates in [release-checklist.md](release-checklist.md).

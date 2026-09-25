@@ -47,26 +47,18 @@ Item {
   property var userFavorites: []
   property var userLeague: null
   property var userLiveMatchup: null
-  // In demo mode the replay fixture supplies its own matchup so every league
-  // feature can be seen offline; otherwise the user's data is used.
-  readonly property var demoProfile: demoMode && snapshot && isObject(snapshot.demo) ? snapshot.demo : null
-  readonly property var favorites: demoProfile && Array.isArray(demoProfile.favorites)
-    ? demoProfile.favorites : userFavorites
+  readonly property var favorites: userFavorites
   readonly property int favoriteCount: favorites.length
-  property string scoringMode: "ppr"
-  property string alertPreset: "off"
   // Which plays the feed lists show: every play, only plays worth 3+ or 6+
   // points to someone (in the selected scoring mode), or touchdowns.
   property string feedFilter: "all"
-  readonly property var league: demoProfile && isObject(demoProfile.league) ? demoProfile.league : userLeague
+  readonly property var league: userLeague
   readonly property bool hasMatchup: league !== null && favoriteSideCount("me") > 0
   readonly property bool leagueScoring: snapshot ? snapshot.leagueScoring === true : false
   // ESPN's own live totals for the matchup, when the sync is running.
-  readonly property var liveMatchup: demoProfile && isObject(demoProfile.liveMatchup)
-    ? demoProfile.liveMatchup : userLiveMatchup
+  readonly property var liveMatchup: userLiveMatchup
   readonly property bool liveMatchupFresh: {
     if (!liveMatchup) return false
-    if (demoProfile) return true
     var observed = Date.parse(String(liveMatchup.observedAt || ""))
     return isFinite(observed) && (Date.now() - observed) < 30 * 60 * 1000
   }
@@ -108,14 +100,11 @@ Item {
   property string lastUpdated: ""
   property int nextPollSeconds: 0
   property string nextPollReason: ""
-  property bool demoMode: false
 
   property string _sourceDir: ""
   property string _stdout: ""
   property string _stderr: ""
-  property bool _runDemoMode: false
   property bool _timedOut: false
-  property bool _refreshAfterExit: false
   property bool _favoritesLoaded: false
   property int _consecutiveFailures: 0
   property string _presentationContext: ""
@@ -228,15 +217,11 @@ Item {
     return count
   }
 
-  function scoringLabel() {
-    if (scoringMode === "ppr") return "PPR"
-    if (scoringMode === "league") return "LG"
-    return "STD"
-  }
-
+  // League scoring throughout. Without a synced league the helper mirrors
+  // standard scoring under the league key, so this never falls through.
   function pointsIn(points) {
     if (!points || typeof points !== "object") return 0
-    var value = points[scoringMode]
+    var value = points.league
     if (value === undefined || value === null) value = points.standard
     var number = Number(value)
     return isFinite(number) ? number : 0
@@ -262,17 +247,17 @@ Item {
 
   // The bar's matchup line. ESPN's live totals win when the sync is running
   // and current: they include kickers and defenses, which plays cannot score.
+  // Just the two scores, mine first. Names live in the tooltip.
   function matchupBarLabel() {
     if (!hasMatchup) return ""
-    var opponent = league && league.opponent ? String(league.opponent.abbrev || "OPP") : "OPP"
     if (liveMatchupFresh && liveMatchup.me && liveMatchup.opponent) {
       var me = Number(liveMatchup.me.points) || 0
       var them = Number(liveMatchup.opponent.points) || 0
       if (me > 0 || them > 0 || String(liveMatchup.status || "") !== "UNDECIDED")
-        return "ME " + formatTotal(me) + " – " + formatTotal(them) + " " + opponent
+        return formatTotal(me) + " – " + formatTotal(them)
     }
     var totals = matchupTotals
-    return "ME " + formatTotal(totals.me) + " – " + formatTotal(totals.opp) + " " + opponent
+    return formatTotal(totals.me) + " – " + formatTotal(totals.opp)
   }
 
   function isFavoriteTeam(team) {
@@ -311,6 +296,16 @@ Item {
     return null
   }
 
+  // ESPN's per-starter entry from the league sync (league.json `players`),
+  // only while that file describes the same week as the synced lineups.
+  function syncedStarter(playerId) {
+    if (!liveMatchup || !isObject(liveMatchup.players)) return null
+    if (league && liveMatchup.week !== undefined && liveMatchup.week !== null
+        && Number(liveMatchup.week) !== Number(league.week)) return null
+    var entry = liveMatchup.players[String(playerId)]
+    return isObject(entry) ? entry : null
+  }
+
   function buildFavoritePlayerRows() {
     var rows = []
     for (var favoriteIndex = 0; favoriteIndex < favorites.length; favoriteIndex++) {
@@ -345,6 +340,25 @@ Item {
         break
       }
 
+      var position = String(leader && leader.position ? leader.position : favorite.position || "")
+      var points = leader && leader.points ? leader.points : ({ppr: 0, standard: 0})
+      var pointsSource = "plays"
+      // Kickers and defenses score nothing from plays. When the league sync
+      // carries ESPN's own number for them this week, show that instead.
+      var espnPlayer = syncedStarter(playerId)
+      if ((position === "K" || position === "D/ST") && espnPlayer) {
+        var espnPoints = Number(espnPlayer.points)
+        if (!isFinite(espnPoints)) espnPoints = 0
+        points = {ppr: espnPoints, standard: espnPoints, league: espnPoints}
+        pointsSource = "espn"
+      }
+      // ESPN's weekly projection for this starter, when the sync carries it.
+      var projected = null
+      if (espnPlayer && espnPlayer.projected !== undefined && espnPlayer.projected !== null) {
+        var projectedNumber = Number(espnPlayer.projected)
+        if (isFinite(projectedNumber)) projected = projectedNumber
+      }
+
       rows.push({
         playerId: playerId,
         side: String(favorite.side || ""),
@@ -352,8 +366,10 @@ Item {
         displayName: String(leader && leader.displayName
           ? leader.displayName : favorite.displayName || "Unknown player"),
         team: team,
-        position: String(leader && leader.position ? leader.position : favorite.position || ""),
-        points: leader && leader.points ? leader.points : ({ppr: 0, standard: 0}),
+        position: position,
+        points: points,
+        pointsSource: pointsSource,
+        projected: projected,
         stats: leader && leader.stats ? leader.stats : [],
         gameIds: gameIds,
         latestEvent: latestEvent,
@@ -381,45 +397,6 @@ Item {
       return String(left.displayName).localeCompare(String(right.displayName))
     })
     return rows
-  }
-
-  function normalizedScoringMode(value) {
-    var mode = String(value || "")
-    if (mode === "standard" || mode === "league") return mode
-    return "ppr"
-  }
-
-  function setScoringMode(value) {
-    var next = normalizedScoringMode(value)
-    if (scoringMode === next) return next
-    scoringMode = next
-    if (_favoritesLoaded) favoritesSaveTimer.restart()
-    return next
-  }
-
-  function toggleScoringMode() {
-    if (scoringMode === "ppr") return setScoringMode("standard")
-    if (scoringMode === "standard" && league) return setScoringMode("league")
-    return setScoringMode("ppr")
-  }
-
-  function validAlertPreset(value) {
-    return ["off", "all", "touchdowns", "threshold3", "threshold6"]
-      .indexOf(String(value || "")) !== -1
-  }
-
-  function setAlertPreset(value) {
-    var next = validAlertPreset(value) ? String(value) : "off"
-    if (alertPreset === next) return next
-    alertPreset = next
-    if (_favoritesLoaded) favoritesSaveTimer.restart()
-    return next
-  }
-
-  function alertThreshold() {
-    if (alertPreset === "threshold3") return 3
-    if (alertPreset === "threshold6") return 6
-    return 0
   }
 
   function validFeedFilter(value) {
@@ -525,23 +502,26 @@ Item {
     return false
   }
 
-  function shouldNotifyFavoriteEvent(event) {
-    if (alertPreset === "off" || !gameEnabled(event ? event.gameId : "")) return false
+  // Participants on my side: my synced starters plus hand-starred favorites.
+  // The opponent's lineup is tracked in the rail and matchup but never alerts.
+  function myParticipants(event) {
     var matches = favoriteParticipants(event)
-    if (matches.length === 0) return false
-    if (alertPreset === "all") return true
-    if (alertPreset === "touchdowns") return eventIsTouchdown(event)
-    var threshold = alertThreshold()
+    var mine = []
     for (var index = 0; index < matches.length; index++) {
-      var points = pointsIn(matches[index].points)
-      if (points >= threshold) return true
+      if (favoriteSide(matches[index].playerId) !== "opp") mine.push(matches[index])
     }
-    return false
+    return mine
+  }
+
+  // Every play by one of my players alerts, in games that are not hidden.
+  function shouldNotifyFavoriteEvent(event) {
+    if (!gameEnabled(event ? event.gameId : "")) return false
+    return myParticipants(event).length > 0
   }
 
   function sendFavoriteNotification(event) {
     if (!shouldNotifyFavoriteEvent(event)) return
-    var matches = favoriteParticipants(event)
+    var matches = myParticipants(event)
     var labels = []
     for (var index = 0; index < matches.length && index < 2; index++) {
       var participant = matches[index]
@@ -549,10 +529,10 @@ Item {
       labels.push(shortPlayerName(participant.displayName) + " " + signedPoints(points))
     }
     if (matches.length > 2) labels.push("+" + (matches.length - 2) + " more")
-    var opponentPlay = favoriteSide(matches[0].playerId) === "opp"
-    var headline = (opponentPlay ? "⚔ OPP " : "★ ") + labels.join(" · ") + " " + scoringLabel()
+    var headline = "★ " + labels.join(" · ")
     var payload = JSON.stringify({
-      tab: "favorites",
+      tab: "feed",
+      mine: true,
       playerId: String(matches[0].playerId || ""),
       eventToken: eventToken(event)
     })
@@ -620,7 +600,6 @@ Item {
   // Send one follow-up per clip, for plays the alert policy would have
   // announced, with the click going straight to mpv.
   function notifyNewHighlights(value) {
-    if (alertPreset === "off") return
     var sourceEvents = value && Array.isArray(value.events) ? value.events : []
     for (var index = 0; index < sourceEvents.length; index++) {
       var event = sourceEvents[index]
@@ -630,16 +609,15 @@ Item {
       if (_notifiedHighlights[key]) continue
       _notifiedHighlights[key] = true
       if (!shouldNotifyFavoriteEvent(event)) continue
-      var matches = favoriteParticipants(event)
+      var matches = myParticipants(event)
       var who = matches.length > 0 ? shortPlayerName(matches[0].displayName) : "PLAY"
-      var opponentPlay = matches.length > 0 && favoriteSide(matches[0].playerId) === "opp"
       Quickshell.execDetached([
         "omarchy-notification-send",
         "--app-name", "Fantasy Feed",
         "-g", "▶",
         "-u", "low",
         "-t", "9000",
-        (opponentPlay ? "⚔ OPP " : "★ ") + who + " · HIGHLIGHT " + highlightAge(event),
+        "★ " + who + " · HIGHLIGHT " + highlightAge(event),
         String(highlight.title || event.rawText || "Highlight clip"),
         "--exec"
       ].concat(highlightCommand(highlight)))
@@ -673,14 +651,9 @@ Item {
     return favoriteSpotlightActive && eventToken(event) === favoriteSpotlightToken
   }
 
-  function dataModeName() {
-    if (demoMode) return "demo"
-    return "live"
-  }
-
   function presentationContextFor(value) {
     var valueWeek = value && value.week ? value.week : null
-    return dataModeName() + ":" + String(valueWeek ? valueWeek.season : "")
+    return String(valueWeek ? valueWeek.season : "")
       + ":" + String(valueWeek ? valueWeek.seasonType : "")
       + ":" + String(valueWeek ? valueWeek.number : "")
   }
@@ -907,9 +880,6 @@ Item {
       if (parsed && parsed.version === 1 && isObject(parsed.league)
           && isObject(parsed.league.scoring))
         loadedLeague = parsed.league
-      scoringMode = normalizedScoringMode(settings.scoringMode)
-      alertPreset = validAlertPreset(settings.alertPreset)
-        ? String(settings.alertPreset) : "off"
       feedFilter = validFeedFilter(settings.feedFilter) ? String(settings.feedFilter) : "all"
       var seen = ({})
       for (var index = 0; index < values.length; index++) {
@@ -940,7 +910,7 @@ Item {
     var document = {
       version: 1,
       favorites: userFavorites,
-      settings: {scoringMode: scoringMode, alertPreset: alertPreset, feedFilter: feedFilter}
+      settings: {feedFilter: feedFilter}
     }
     if (userLeague) document.league = userLeague
     var text = JSON.stringify(document, null, 2) + "\n"
@@ -1086,10 +1056,7 @@ Item {
   }
 
   function helperCommand() {
-    var script = _sourceDir + "/scripts/feed.py"
-    if (_runDemoMode)
-      return ["python3", script, "--fixture", _sourceDir + "/fixtures/replays/demo.json"]
-    return ["python3", script, "--once"]
+    return ["python3", _sourceDir + "/scripts/feed.py", "--once"]
   }
 
   function refresh() {
@@ -1103,26 +1070,11 @@ Item {
     _stdout = ""
     _stderr = ""
     _timedOut = false
-    _runDemoMode = demoMode
     loading = true
     feedProcess.command = helperCommand()
     feedProcess.running = true
     watchdog.start()
-    if (_runDemoMode) return "refreshing demo feed"
     return "refreshing live feed"
-  }
-
-  function selectMode(useDemo) {
-    demoMode = useDemo
-    if (feedProcess.running) {
-      _refreshAfterExit = true
-      return useDemo ? "demo mode queued" : "live mode queued"
-    }
-    return refresh()
-  }
-
-  function modeChangedDuringRun() {
-    return _runDemoMode !== demoMode
   }
 
   function initializeFromManifest() {
@@ -1230,17 +1182,10 @@ Item {
 
       if (root._timedOut) {
         root._timedOut = false
-      } else if (root.modeChangedDuringRun()) {
-        root.loading = false
       } else {
         var output = String(feedStdout.text || root._stdout || "")
         var errorOutput = String(feedStderr.text || root._stderr || "")
         root.applyOutput(exitCode, output, errorOutput)
-      }
-
-      if (root._refreshAfterExit || root.modeChangedDuringRun()) {
-        root._refreshAfterExit = false
-        Qt.callLater(function() { root.refresh() })
       }
     }
   }
@@ -1261,7 +1206,6 @@ Item {
 
     function status(): string {
       return JSON.stringify({
-        mode: root.demoMode ? "demo" : "live",
         loading: root.loading,
         stale: root.stale,
         sourceState: root.snapshot ? root.snapshot.sourceState : "unavailable",
@@ -1277,8 +1221,6 @@ Item {
         favoriteCount: root.favoriteCount,
         favoriteSpotlightActive: root.favoriteSpotlightActive,
         favoriteRedZoneGameCount: root.favoriteRedZoneGameCount,
-        scoringMode: root.scoringMode,
-        alertPreset: root.alertPreset,
         matchup: root.hasMatchup ? root.matchupBarLabel() : "",
         highlights: root.highlightStatus,
         liveMatchupFresh: root.liveMatchupFresh,
@@ -1293,14 +1235,5 @@ Item {
     function refresh(): string {
       return root.refresh()
     }
-
-    function demo(): string {
-      return root.selectMode(true)
-    }
-
-    function live(): string {
-      return root.selectMode(false)
-    }
-
   }
 }

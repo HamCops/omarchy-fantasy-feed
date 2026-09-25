@@ -16,6 +16,12 @@ from typing import Any, Callable, Mapping, Sequence
 
 
 SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+_SCOREBOARD_PATH = "/apis/site/v2/sports/football/nfl/scoreboard"
+# ESPN's default scoreboard keeps showing a finished week until Wednesday. Once
+# every game on it is final and the last kickoff is this many hours behind, the
+# feed follows the next week's slate instead, the way fantasy leagues roll on
+# Tuesday.
+WEEK_ROLLOVER_HOURS = 6
 SUMMARY_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={}"
 ROSTER_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/{}/roster"
 REQUEST_TIMEOUT_SECONDS = 5
@@ -113,6 +119,13 @@ def _response_limit(url: str) -> int:
         raise ProviderError("invalid_url", "ESPN requests must use an approved HTTPS URL")
     if url == SCOREBOARD_URL:
         return _SCOREBOARD_LIMIT
+    if parsed.hostname == "site.api.espn.com" and parsed.path == _SCOREBOARD_PATH:
+        query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
+        if set(query) == {"seasontype", "week"} and all(
+            len(values) == 1 and values[0].isascii() and values[0].isdigit()
+            for values in query.values()
+        ):
+            return _SCOREBOARD_LIMIT
     if parsed.hostname == "site.api.espn.com" and parsed.path == (
         "/apis/site/v2/sports/football/nfl/summary"
     ):
@@ -188,6 +201,13 @@ def normalize_statistics_url(reference: Any) -> str:
     )
 
 
+def scoreboard_url(season_type: int, week: int) -> str:
+    """The scoreboard for one explicit week of a season type."""
+    if not isinstance(season_type, int) or not isinstance(week, int) or season_type < 1 or week < 1:
+        raise ProviderError("malformed_response", "week cannot form a scoreboard URL")
+    return SCOREBOARD_URL + "?" + urllib.parse.urlencode({"seasontype": season_type, "week": week})
+
+
 def summary_url(game_id: str) -> str:
     if not game_id or not re.fullmatch(r"[A-Za-z0-9_-]+", game_id):
         raise ProviderError("malformed_response", "game id cannot form a summary URL")
@@ -208,6 +228,7 @@ def _extract_week(root: Mapping[str, Any]) -> dict[str, Any]:
     week_number = _integral_number(week.get("number"), "scoreboard.week.number")
     label = "Week " + str(week_number)
     detail = ""
+    next_number: int | None = None
     leagues = root.get("leagues", [])
     if isinstance(leagues, list) and leagues and isinstance(leagues[0], Mapping):
         calendar = leagues[0].get("calendar", [])
@@ -218,13 +239,18 @@ def _extract_week(root: Mapping[str, Any]) -> dict[str, Any]:
                 entries = period.get("entries", [])
                 if not isinstance(entries, list):
                     continue
-                for entry in entries:
+                for index, entry in enumerate(entries):
                     if not isinstance(entry, Mapping) or str(entry.get("value", "")) != str(week_number):
                         continue
                     if isinstance(entry.get("label"), str) and entry["label"]:
                         label = entry["label"]
                     if isinstance(entry.get("detail"), str):
                         detail = entry["detail"]
+                    following = entries[index + 1] if index + 1 < len(entries) else None
+                    if isinstance(following, Mapping):
+                        value = str(following.get("value", ""))
+                        if value.isascii() and value.isdigit() and int(value) > week_number:
+                            next_number = int(value)
                     break
     return {
         "season": season_year,
@@ -232,6 +258,7 @@ def _extract_week(root: Mapping[str, Any]) -> dict[str, Any]:
         "number": week_number,
         "label": label,
         "detail": detail,
+        "_nextNumber": next_number,
     }
 
 
@@ -346,12 +373,52 @@ def extract_scoreboard(payload: Mapping[str, Any]) -> dict[str, Any]:
         source_state = "scheduled"
     else:
         source_state = "idle"
+    next_week = week.pop("_nextNumber")
     return {
         "sourceState": source_state,
         "week": week,
+        "nextWeek": next_week,
         "games": sorted(games, key=lambda game: game["id"]),
         "summaryGameIds": sorted(set(summary_game_ids)),
     }
+
+
+def _parse_provider_time(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+
+def slate_finished(scoreboard: Mapping[str, Any], now: datetime) -> bool:
+    """True once every game is final and the last kickoff is hours behind.
+
+    A slate with any game still to play is not finished, even though its
+    source state already reads `final` once the first game ends.
+    """
+    games = scoreboard.get("games") or []
+    if not games or any(game.get("state") != "final" for game in games):
+        return False
+    latest_kickoff: datetime | None = None
+    for game in games:
+        kickoff = _parse_provider_time(str(game.get("startTime", "")))
+        if kickoff is None:
+            return False
+        if latest_kickoff is None or kickoff > latest_kickoff:
+            latest_kickoff = kickoff
+    assert latest_kickoff is not None
+    return (now - latest_kickoff).total_seconds() >= WEEK_ROLLOVER_HOURS * 3600
+
+
+def fetch_scoreboard(request_json: GetJson, now: datetime) -> dict[str, Any]:
+    """ESPN's default slate, or the following week's once the default is done."""
+    scoreboard = extract_scoreboard(request_json(SCOREBOARD_URL))
+    next_week = scoreboard.get("nextWeek")
+    if next_week is None or not slate_finished(scoreboard, now):
+        return scoreboard
+    season_type = scoreboard["week"]["seasonType"]
+    return extract_scoreboard(request_json(scoreboard_url(season_type, next_week)))
 
 
 def _boxscore_team_map(payload: Mapping[str, Any]) -> dict[str, str]:
@@ -932,7 +999,8 @@ def collect_live(
     rejected under a different version are treated as unseen.
     """
     request_json = get_json or default_get_json
-    scoreboard = extract_scoreboard(request_json(SCOREBOARD_URL))
+    observed = _parse_provider_time(observed_at) if observed_at else None
+    scoreboard = fetch_scoreboard(request_json, observed or datetime.now(timezone.utc))
     games = scoreboard["games"]
     games_by_id = {game["id"]: game for game in games}
     summary_urls = [summary_url(game_id) for game_id in scoreboard["summaryGameIds"]]

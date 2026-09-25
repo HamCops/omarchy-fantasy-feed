@@ -11,8 +11,6 @@ Item {
   property var service: null
   property color foreground: Color.foreground
   property string fontFamily: Style.font.family
-  readonly property string scoringMode: service ? service.scoringMode : "ppr"
-  readonly property string alertPreset: service ? service.alertPreset : "off"
   readonly property var players: service && Array.isArray(service.favoritePlayerRows)
     ? service.favoritePlayerRows : []
   readonly property bool matchup: service ? service.hasMatchup === true : false
@@ -20,12 +18,6 @@ Item {
     ? service.matchupTotals : ({me: 0, opp: 0})
   readonly property color opponentColor: "#ff6b6b"
   readonly property color mineColor: "#6fcf79"
-
-  function modeLabel() {
-    if (scoringMode === "ppr") return "PPR"
-    if (scoringMode === "league") return "LG"
-    return "STD"
-  }
 
   function points(value) {
     return service ? service.pointsIn(value) : 0
@@ -58,8 +50,6 @@ Item {
     return words[0].charAt(0).toUpperCase() + ". " + words[words.length - 1].toUpperCase()
   }
 
-  onAlertPresetChanged: alertDropdown.value = alertPreset
-
   visible: players.length > 0
   width: parent ? parent.width : implicitWidth
   height: visible ? Style.space(48) : 0
@@ -73,7 +63,7 @@ Item {
     spacing: Style.space(2)
 
     Text {
-      text: (root.matchup ? "MATCHUP · " : "MY PLAYERS · ") + root.modeLabel()
+      text: root.matchup ? "MATCHUP" : "MY PLAYERS"
       color: Qt.darker(root.foreground, 1.3)
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
@@ -88,29 +78,6 @@ Item {
       font.family: root.fontFamily
       font.pixelSize: Style.font.caption
       font.bold: true
-    }
-
-    Dropdown {
-      id: alertDropdown
-      width: parent.width
-      showLabel: false
-      options: [
-        {value: "off", label: "ALERTS OFF"},
-        {value: "all", label: "★ ALL"},
-        {value: "touchdowns", label: "★ TD"},
-        {value: "threshold3", label: "★ 3+"},
-        {value: "threshold6", label: "★ 6+"}
-      ]
-      value: root.alertPreset
-      foreground: root.foreground
-      fontFamily: root.fontFamily
-      HoverHandler { id: alertHelpHover }
-      ToolTip.visible: alertHelpHover.hovered && !alertDropdown.popupOpen
-      ToolTip.text: "New plays by My Players (both sides of the matchup). Thresholds "
-        + "use the selected scoring mode's points from one play."
-      onChanged: function(value) {
-        if (root.service) root.service.setAlertPreset(value)
-      }
     }
   }
 
@@ -170,19 +137,11 @@ Item {
             NumberAnimation { target: playerChip; property: "scale"; to: 1; duration: 190 }
           }
 
-          HoverHandler { id: chipHover }
           TapHandler {
             onTapped: root.playerActivated(
               String(playerChip.player.playerId || ""),
               String(playerChip.player.latestEventToken || ""))
           }
-
-          ToolTip.visible: chipHover.hovered
-          ToolTip.text: String(player.displayName || "Unknown player")
-            + (playerChip.opponent ? " · OPPONENT" : (String(player.side || "") === "me" ? " · MY STARTER" : ""))
-            + (player.slot ? " · " + String(player.slot) : "")
-            + (player.redZone ? " · RED ZONE · " + String(player.redZoneDetail || "") : "")
-            + "\nClick to jump to the latest play"
 
           Column {
             anchors.fill: parent
@@ -221,20 +180,42 @@ Item {
               }
             }
 
-            Text {
+            // Weekly points and last delta on the left, ESPN's projection
+            // for the week on the right.
+            Item {
               width: parent.width
-              text: root.signedPoints(playerChip.weeklyPoints) + " " + root.modeLabel()
-                + (playerChip.player.latestEvent
-                  ? " · " + root.signedPoints(playerChip.latestPoints) : "")
-              color: playerChip.player.spotlight
-                ? playerChip.pulseColor
-                : (playerChip.opponent
-                  ? root.pointsColor(-playerChip.weeklyPoints)
-                  : root.pointsColor(playerChip.weeklyPoints))
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              font.bold: true
-              elide: Text.ElideRight
+              height: Math.max(chipPoints.implicitHeight, chipProjection.implicitHeight)
+
+              Text {
+                id: chipPoints
+                anchors.left: parent.left
+                anchors.right: chipProjection.left
+                anchors.rightMargin: Style.space(4)
+                text: root.signedPoints(playerChip.weeklyPoints)
+                  + (playerChip.player.latestEvent
+                    ? " · " + root.signedPoints(playerChip.latestPoints) : "")
+                color: playerChip.player.spotlight
+                  ? playerChip.pulseColor
+                  : (playerChip.opponent
+                    ? root.pointsColor(-playerChip.weeklyPoints)
+                    : root.pointsColor(playerChip.weeklyPoints))
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Text {
+                id: chipProjection
+                anchors.right: parent.right
+                anchors.baseline: chipPoints.baseline
+                visible: playerChip.player.projected !== null && playerChip.player.projected !== undefined
+                width: visible ? implicitWidth : 0
+                text: "P " + Number(playerChip.player.projected || 0).toFixed(1)
+                color: Qt.darker(root.foreground, 1.5)
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
             }
           }
         }

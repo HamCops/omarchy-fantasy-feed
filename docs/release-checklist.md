@@ -16,16 +16,16 @@ publication steps that require operator review.
 
 - [ ] Install from the committed local clone with
   `omarchy plugin add "file://$PWD" --enable --yes`.
-- [ ] Confirm live, scheduled/final, demo, and stale-cache states.
+- [ ] Confirm live, scheduled/final, and stale-cache states.
 - [ ] Confirm adaptive refresh decisions through IPC status for live, near/far
   kickoff, final/idle, and failure-backoff states, and that no refresh countdown
   appears in the UI. Confirm compact panel plus standalone window share one
   helper process.
 - [ ] Confirm left click, middle-click refresh, pop-out, panel buttons, and every
   documented key.
-- [ ] Confirm the header PPR/STD menu updates inline play scores and leaderboard
-  sorting; confirm all four position filters, favorite
-  persistence after shell restart, favorites-only feed filtering, and arbitrary
+- [ ] Confirm inline play scores, rail totals and leaderboard sort all use the
+  synced league rules; confirm all four position filters, favorite
+  persistence after shell restart, the `★ MINE` feed toggle, and arbitrary
   multi-game selection shared by every view. Confirm player/team search narrows
   the leaderboard without changing favorite state.
 - [ ] Confirm two monitors share one helper process while keeping independent
@@ -33,7 +33,7 @@ publication steps that require operator review.
 - [ ] Check horizontal and vertical bars under two Omarchy themes for QML
   warnings, clipping, binding loops, and contrast.
 - [ ] Confirm dense feed cards show full play text, annotate every scoring
-  player once with the selected PPR/STD value, and retain lifecycle labels.
+  player once with league points, and tag only corrected/voided rows.
 - [ ] Confirm structured stat deltas and favorite controls remain available on
   standalone leaderboard rows.
 - [ ] Confirm newly discovered plays enter one at a time, favorite plays hold
@@ -41,18 +41,19 @@ publication steps that require operator review.
   button returns both feed surfaces to the live edge.
 - [ ] Confirm compact game chips show matchup/score on line one and game
   status/remaining clock on line two at the smallest supported panel width.
-- [ ] Confirm the My Players rail shows weekly PPR/STD totals, latest deltas,
+- [ ] Confirm the My Players rail shows weekly league totals, latest deltas,
   green/red pulses, and click-to-play navigation.
 - [ ] Confirm favorite-team possession produces the amber `★ RZ` game-chip
   state and down-and-distance tooltip, then clears when possession changes.
-- [ ] Exercise `OFF`, all-play, touchdown-only, 3+, and 6+ alert presets. Confirm
-  hidden games stay quiet, Do Not Disturb is honored, and clicking a toast opens
-  the exact favorite play. Restore `OFF` before capturing submission media.
+- [ ] Confirm a play by one of your starters alerts and an opponent's play does
+  not; hidden games stay quiet, Do Not Disturb is honored, and clicking a toast
+  opens the exact play.
 - [ ] Disable and remove the plugin, confirming no helper remains.
 
 ## Preview capture
 
-1. Install the committed plugin under Omarchy and switch to the bundled demo.
+1. Install the committed plugin under Omarchy during a live slate, or point the
+   helper at the replay fixture for a reproducible capture.
 2. Use a horizontal bar and open the panel at a size that shows the reception
    and reviewed/voided play together; retain enough desktop context to prove it
    is running inside Omarchy.

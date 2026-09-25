@@ -12,6 +12,40 @@ All notable changes to Fantasy Feed are documented here.
   espn-mcp's `feed_sync.py`, standard library only, with its own credentials
   file at `~/.config/fantasy-feed/espn.json` (`--init` writes the template,
   `--install-service` the systemd unit). Same two output files, same shape.
+- No hover tooltips anywhere: bar capsule, game chips, rail chips, feed rows,
+  buttons and the points filter.
+- Bar matchup line is just the two scores, yours first: `41.2 – 37.9`.
+  Team names stay in the tooltip.
+- Matchup rows show ESPN's weekly projection under each starter's points;
+  rail chips show it as `P x.x` on the card. Needs a sync that writes
+  `league.json` `players`.
+- Bar capsule shows text only: no football emoji. A vertical bar shows `FF`.
+- One scoring, no menu. Every surface shows the synced league's points
+  (standard when nothing is synced). The PPR/STD/LEAGUE dropdown, the `p`
+  key and the persisted `scoringMode` setting are gone.
+- Alerts always on, my side only. Every new play by one of your starters or
+  hand-starred favorites notifies; the opponent's lineup never does. The
+  alert preset menu, `⚔ OPP` alerts and the persisted `alertPreset` setting
+  are gone.
+- Remove Demo mode. The DEMO/LIVE buttons, `d` key, `demo`/`live` IPC calls,
+  and the fixture's `demo` profile block are gone; the plugin always runs
+  live. `scripts/feed.py --fixture` still replays the checked-in fixture for
+  development and CI.
+- Quieter play rows on both surfaces: hairline separators instead of boxed
+  cards, and no per-row `CURRENT` tag. A row is tagged only for a clip, a
+  favorite spotlight, or a corrected/voided lifecycle.
+- Standalone window: three tabs, `1` feed, `2` matchup, `3` leaders. The
+  favorites-only feed is now a `★ MINE` toggle (`m`) inside the feed tab;
+  alert clicks and rail clicks land there.
+- Roll the feed to the next NFL week on Tuesday. ESPN's default scoreboard
+  keeps a finished week until Wednesday; once every game is final and the
+  last kickoff is six hours old, the provider fetches the following calendar
+  week's scoreboard instead. The explicit-week scoreboard URL is the only new
+  request shape the adapter accepts.
+- List kickers and defenses in the synced matchup. Plays cannot score them,
+  so those rows show ESPN's own weekly points from the league sync
+  (`league.json` now carries a per-starter `players` map), marked `ESPN`.
+  Requires the matching league sync.
 
 ## [1.1.0] - 2026-09-08 (HamCops fork)
 

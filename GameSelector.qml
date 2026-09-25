@@ -64,21 +64,6 @@ Item {
     return String(fallbackDetail || "").replace(/\s+(?:AM|PM)\s+E[DS]T\s*$/i, "")
   }
 
-  function gameTooltip(game) {
-    var enabled = service && service.gameEnabled(game.id)
-    var state = String(game && game.state ? game.state : "").toLowerCase()
-    var detail = state === "scheduled"
-      ? gameStatusLabel(game) + " system local time"
-      : String(game && game.detail ? game.detail : "")
-    var action = enabled ? "Hide this game" : "Show this game"
-    var redZone = service && service.gameHasFavoriteRedZone(game)
-      ? "Favorite offense in the red zone: " + service.favoriteRedZoneNames(game)
-        + (game.downDistance ? " · " + String(game.downDistance) : "")
-      : ""
-    var status = detail ? action + " · " + detail : action
-    return redZone ? redZone + "\n" + status : status
-  }
-
   visible: games.length > 0
   width: parent ? parent.width : implicitWidth
   height: visible ? gameChips.implicitHeight : 0
@@ -99,7 +84,6 @@ Item {
       Button {
         id: allGamesButton
         text: "ALL\nGAMES"
-        tooltipText: root.allSelected ? "Hide every game" : "Show every game"
         foreground: root.foreground
         fontFamily: root.fontFamily
         fontSize: Style.font.caption
@@ -137,7 +121,6 @@ Item {
             ? root.service.gameHasFavoriteRedZone(modelData) : false
 
           text: root.gameLabel(modelData)
-          tooltipText: root.gameTooltip(modelData)
           foreground: favoriteRedZone
             ? "#ffb347"
             : (gameSelected ? root.foreground : Qt.darker(root.foreground, 1.65))

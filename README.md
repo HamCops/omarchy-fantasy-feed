@@ -43,32 +43,39 @@ without restarting the shell:
   **scoring rules** in the plugin's stat vocabulary. Favorites you star by
   hand still work; they simply have no side.
 - `~/.cache/fantasy-feed/league.json` -- ESPN's live matchup totals, projected
-  totals and win probability, refreshed every minute while games are on.
+  totals and win probability, refreshed every minute while games are on, plus
+  ESPN's weekly points for every starter on both sides.
 
 With a league synced:
 
-- **Bar**: `LIVE · ME 41.2 – 37.9 TM2`. ESPN's totals when the sync is fresh
+- **Bar**: `LIVE · 41.2 – 37.9`, your score first. ESPN's totals when the sync is fresh
   (they include K and D/ST, which the play parser cannot score); otherwise the
   sum of each side's weekly totals.
 - **Rail**: `MATCHUP · LG`, your starters first, then the opponent's with a red
   border. An opponent's positive play pulses red -- their gain is your loss.
-- **Standalone window, tab 4 (`⚔ MATCHUP`)**: both lineups side by side, slot
-  by slot, weekly points and last play, with ESPN's line underneath.
-- **Alerts**: opponent plays alert too, headlined `⚔ OPP`.
-- **Points filter**: `ALL` / `3+` / `6+` / `TD` beside the scoring menu (key
-  `f`). Every carry and catch scores, so the full feed is busy; the filter
-  keeps only plays worth that much to someone in the selected scoring, or
-  touchdowns. The bar, rail, leaderboard, matchup and alerts still count
-  every play.
-- **Scoring menu**: a `LEAGUE` option (`LG`) beside PPR/STD, selected
-  automatically on the first sync. It applies the synced rules: ESPN's bucket
-  form (1 point per *complete* 25 passing / 10 rushing / 10 receiving yards,
-  floor) is honoured exactly in weekly totals; a single play's delta is scored
-  linearly, since the bucket only resolves against the game total. Passing
-  touchdowns worth 5, no PPR, whatever the league says.
+- **Standalone window, tab 2 (`⚔ MATCHUP`)**: both lineups side by side, slot
+  by slot, weekly points over ESPN's projection for each starter, and last
+  play, with ESPN's line underneath. The rail chips carry the projection too. Kickers
+  and defenses are listed too; plays cannot score them, so their row shows
+  ESPN's own weekly points for that player, marked `ESPN`.
+- **Week rollover**: ESPN's default scoreboard keeps a finished week until
+  Wednesday. Once every game is final and the last kickoff is six hours old,
+  the feed follows the next week's slate, so the matchup and the feed agree
+  from Tuesday on, when the league sync moves to the new week.
+- **Alerts**: every play by one of your starters (or a hand-starred favorite)
+  sends a low-urgency notification. The opponent's lineup is tracked in the
+  rail and matchup but never alerts. There is no alert menu.
+- **Points filter**: `ALL` / `3+` / `6+` / `TD` in the header (key `f`).
+  Every carry and catch scores, so the full feed is busy; the filter keeps
+  only plays worth that much to someone, or touchdowns. The bar, rail,
+  leaderboard, matchup and alerts still count every play.
+- **Scoring**: the synced league rules, everywhere, with no menu. ESPN's
+  bucket form (1 point per *complete* 25 passing / 10 rushing / 10 receiving
+  yards, floor) is honoured exactly in weekly totals; a single play's delta
+  is scored linearly, since the bucket only resolves against the game total.
+  Passing touchdowns worth 5, no PPR, whatever the league says.
 
-Without a sync nothing changes: PPR/STD, favorites and alerts behave as
-upstream.
+Without a sync, points fall back to the fixed standard table below.
 
 ## Highlight clips
 
@@ -93,14 +100,13 @@ five-minute backoff on any refusal. Posts are cached for eight hours in
 [![Omarchy plugin](https://img.shields.io/badge/Omarchy-plugin-f26d5b)](https://omarchy.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-f5f5f5)](LICENSE)
 
-![Fantasy Feed running its deterministic offline demo](preview.png)
+![Fantasy Feed](preview.png)
 
 Fantasy Feed is an Omarchy plugin for following NFL plays through a
 fantasy-football lens. A stable bar capsule shows feed health without resizing
 on every snap. The compact panel expands each play into raw text, stat deltas,
-and the points from a selectable PPR or standard profile; a shared My Players
-rail tracks favorite totals, latest deltas, red-zone opportunities, and quiet
-alerts. A standalone window adds weekly leaderboards and a favorites-only feed.
+and the points under your league's scoring; a shared My Players rail tracks
+favorite totals, latest deltas, red-zone opportunities, and quiet alerts. A standalone window adds weekly leaderboards and a favorites-only feed.
 
 It uses the active Omarchy theme and deliberately avoids sportsbook branding,
 accounts, contests, and roster management.
@@ -124,29 +130,23 @@ LIVE · ★ CUEVAS +2.8
 
 Opening the compact panel shows the game clock and matchup, ESPN's play text, the
 current/corrected/voided lifecycle, with each affected player's selected points
-inserted directly after their name in the play sentence. A PPR/STD menu in the
-header changes every inline score and the weekly leaderboard sort together.
+inserted directly after their name in the play sentence.
 Play text wraps in full instead of being truncated; unusually long plays grow
-only as much as needed. A bundled demo covers a reception, negative rush, interception,
-catch-and-fumble, passing two-point conversion, and a reviewed touchdown that
-becomes voided. Positive points are green, negative points are red, and zero is
-neutral.
+only as much as needed. Rows are separated by hairlines rather than boxed, and
+only a corrected or voided play, a clip, or a favorite spotlight carries a tag.
+Positive points are green, negative points are red, and zero is neutral.
 
 Pop the panel into a normal movable/tileable window for three views: the full
-feed, a weekly QB/RB/WR/TE leaderboard sortable by PPR or standard points, and
-a custom feed containing only plays by locally favorited players.
+feed (with a `★ MINE` toggle that keeps only plays by your favorite and lineup
+players), the league matchup, and a weekly QB/RB/WR/TE leaderboard.
 
 When players are favorited, a horizontally scrollable **My Players** rail shows
 each player's weekly total and latest play delta in the selected scoring mode.
 Positive and negative arrivals pulse green or red. Clicking a player jumps to
-their latest scored play. The scoring selection is shared by every surface and
-persists across shell restarts.
+their latest scored play.
 
-The rail's alert policy watches only newly arriving plays involving **My
-Players**. The `3+` and `6+` presets compare one favorite participant's
-points on that play in the currently selected PPR/STD mode—not the player's
-weekly total. Hidden games do not alert, and Omarchy's do-not-disturb setting is
-honored.
+Alerts fire for newly arriving plays involving your own players only. Hidden
+games do not alert, and Omarchy's do-not-disturb setting is honored.
 
 A horizontally scrollable game strip appears across both feed surfaces. Click
 any matchup to toggle it independently; click **ALL** to hide or restore the
@@ -155,7 +155,7 @@ and remaining clock. Scheduled chips omit the repeated meridiem/time-zone suffix
 and format the provider's UTC kickoff in the user's system timezone, with one
 `ALL TIMES LOCAL` note for the slate; final games show the provider's final
 detail. When a favorite's team has possession in the red zone, its chip turns
-amber and shows `★ RZ` plus down-and-distance in the tooltip. The same selection
+amber and shows `★ RZ`. The same selection
 filters the compact feed, standalone feed, favorites feed, and weekly
 leaderboard.
 
@@ -169,8 +169,8 @@ so incoming plays cannot pull the reader away from the play they are reading.
 ### Full- and half-screen layouts
 
 The standalone window tiles cleanly as the main view or as a compact sidecar.
-Both captures use the bundled deterministic demo, so positive, negative, zero,
-and voided scoring states remain reproducible.
+Both captures replay the checked-in fixture, so positive, negative, zero, and
+voided scoring states are reproducible. They predate the matchup tab.
 
 ![Fantasy Feed full-screen layout](docs/screenshots/fantasy-feed-full.png)
 
@@ -180,7 +180,8 @@ and voided scoring states remain reproducible.
 
 - Omarchy with the current shell plugin commands.
 - Python 3. The runtime uses only the Python standard library.
-- Network access for live data. Demo mode is deterministic and offline.
+- Network access for live data. The checked-in fixture replays offline for
+  development and CI.
 
 ## Install
 
@@ -215,28 +216,23 @@ omarchy plugin remove io.github.studioxvii.fantasy-feed --yes
   preceding hour, and every 15 minutes when kickoff is farther away. Once the
   slate is final it sleeps until a 6:00 AM local daily schedule check.
 - Middle-click or **Refresh** requests an optional immediate refresh.
-- Use **Demo/Live** to switch data modes and **↗** (or `o`) to pop out.
+- Use **↗** (or `o`) to pop out.
 - Click any matchup in the game strip to add or remove that game. Any number of
   games can be selected at once; **ALL** toggles the complete slate.
-- Use the arrow keys or `j`/`k` to move through plays, `r` to refresh, `d` to
-  switch demo/live, `p` to toggle the selected PPR/STD profile, and `Esc` to
-  close the compact panel. The header menu provides the same scoring control.
-- In the standalone window, use `1`/`2`/`3` for feed/leaderboard/favorites and
-  `p` to toggle PPR/standard display and sorting. Select `ALL`, `QB`, `RB`, `WR`, or `TE`,
-  type in the player/team search (`/` focuses it), and use `☆`/`★` to update
-  favorites from the leaderboard.
-- Use the alert menu beside **My Players** to choose `OFF`, every favorite play,
-  favorite touchdowns only, or a 3+/6+ point threshold. Alerts are low urgency,
-  respect Omarchy Do Not Disturb, skip hidden games, and open the exact play
-  when clicked.
+- Use the arrow keys or `j`/`k` to move through plays, `r` to refresh, and
+  `Esc` to close the compact panel.
+- In the standalone window, use `1`/`2`/`3` for feed/matchup/leaders and `m`
+  to toggle the `★ MINE` feed. Select `ALL`, `QB`, `RB`, `WR`, or `TE`, type in
+  the player/team search (`/` focuses it), and use `☆`/`★` to update favorites
+  from the leaderboard.
+- Alerts are always on for your own players: low urgency, respect Omarchy Do
+  Not Disturb, skip hidden games, and open the exact play when clicked.
 
 The same service controls are available through Omarchy shell IPC:
 
 ```sh
 omarchy-shell io.github.studioxvii.fantasy-feed status
 omarchy-shell io.github.studioxvii.fantasy-feed refresh
-omarchy-shell io.github.studioxvii.fantasy-feed demo
-omarchy-shell io.github.studioxvii.fantasy-feed live
 omarchy-shell shell toggle io.github.studioxvii.fantasy-feed
 ```
 
@@ -246,7 +242,7 @@ The data helper is also useful on its own:
 # One live normalized snapshot
 python3 scripts/feed.py --once
 
-# The complete offline demo, or a specific zero-based replay frame
+# The complete offline replay, or a specific zero-based frame
 python3 scripts/feed.py --fixture fixtures/replays/demo.json
 python3 scripts/feed.py --fixture fixtures/replays/demo.json --at 2
 ```
@@ -256,8 +252,9 @@ piped safely to tools such as `jq`.
 
 ## Scoring
 
-The plugin ships two fixed scoring profiles. PPR differs from standard only by
-the reception bonus.
+With a league synced, every surface uses the league's rules. Without one, the
+fixed standard table below applies. (The helper still emits PPR values in the
+snapshot; nothing displays them.)
 
 | Stat | PPR | Standard |
 | --- | ---: | ---: |
@@ -281,8 +278,7 @@ and other sports.
 
 Weekly leaderboard totals come from complete structured game box scores rather
 than the bounded play feed. ESPN roster metadata is used only to assign the
-QB/RB/WR/TE grouping. Favorites, the shared PPR/STD selection, and alert policy
-are stored locally in
+QB/RB/WR/TE grouping. Favorites and the points filter are stored locally in
 `$XDG_CONFIG_HOME/omarchy/fantasy-feed.json` (normally
 `~/.config/omarchy/fantasy-feed.json`); no fantasy account is required.
 
@@ -344,7 +340,7 @@ valid in-memory snapshot and marks it stale when a later helper run fails.
 
 Live mode reads undocumented public ESPN NFL JSON endpoints. They require no
 credentials, but they are unsupported and may change or disappear. Recorded
-fixtures and demo mode remain useful without ESPN, and the adapter is isolated
+fixtures replay without ESPN, and the adapter is isolated
 in `scripts/espn.py` so provider changes do not leak into QML.
 
 Matt Van Horn's [CLI Printing Press](https://github.com/mvanhorn/cli-printing-press)
@@ -369,7 +365,7 @@ git diff --check
 ```
 
 The submitted default branch contains only runtime files, the single offline
-demo fixture, documentation, and marketplace media. The complete development
+replay fixture, documentation, and marketplace media. The complete development
 harness and historical load-testing tools remain available on the
 [development branch](https://github.com/studioxvii/omarchy-fantasy-feed/tree/development).
 Architecture details live in [docs/architecture.md](docs/architecture.md).

@@ -43,7 +43,6 @@ Panel {
   // second monitor never moves the first monitor's cursor.
   property int selectedIndex: 0
   property bool cursorActive: true
-  readonly property string scoringMode: feedService ? feedService.scoringMode : "ppr"
   readonly property string feedFilter: feedService ? feedService.feedFilter : "all"
   property bool followNewest: true
   property int unseenArrivals: 0
@@ -200,12 +199,6 @@ Panel {
     if (feedService) feedService.refresh()
   }
 
-  function toggleMode() {
-    if (!feedService) return
-    if (feedService.demoMode) feedService.selectMode(false)
-    else feedService.selectMode(true)
-  }
-
   function popOut() {
     var hostShell = bar && bar.shell ? bar.shell : null
     root.close()
@@ -225,12 +218,6 @@ Panel {
     var number = Number(value)
     if (!isFinite(number) || Math.abs(number) < 0.005) return Qt.darker(contentForeground, 1.35)
     return number > 0 ? positivePoints : negativePoints
-  }
-
-  function scoringLabel() {
-    if (scoringMode === "ppr") return "PPR"
-    if (scoringMode === "league") return "LG"
-    return "STD"
   }
 
   function pointsIn(points) {
@@ -300,15 +287,21 @@ Panel {
     return quarterLabel + (clock ? "  " + clock : "")
   }
 
-  function lifecycle(event) {
-    var value = event ? String(event.lifecycle || "current") : "current"
-    return value.toUpperCase()
+  // The row's right-hand tag. A normal play carries nothing; only a clip,
+  // a favorite spotlight, or a corrected/voided lifecycle earns text.
+  function rowTag(event, opening, highlight, spotlight) {
+    var parts = []
+    if (opening) parts.push("▶ OPENING…")
+    else if (highlight) parts.push("▶ CLIP " + feedService.highlightAge(event))
+    if (spotlight) parts.push("★")
+    var lifecycle = event ? String(event.lifecycle || "current") : "current"
+    if (lifecycle !== "current") parts.push(lifecycle.toUpperCase())
+    return parts.join(" · ")
   }
 
   function stateLabel() {
     if (!feedService) return "OFFLINE"
     if (feedService.stale) return "STALE"
-    if (feedService.demoMode) return "DEMO"
     var source = feedService.snapshot ? String(feedService.snapshot.sourceState || "") : ""
     if (source === "live") return "LIVE"
     if (source === "scheduled") return "SCHEDULED"
@@ -350,12 +343,10 @@ Panel {
     if (hiddenByFilter > 0)
       return hiddenByFilter + (hiddenByFilter === 1 ? " play is" : " plays are")
         + " hidden by the points filter. Set it to ALL (f) to see everything."
-    if (feedService.demoMode) return "Replay mode is ready, but this fixture has no visible events."
-    return "Keep this panel open or switch to Demo for a deterministic sample."
+    return "Plays appear here as ESPN reports them."
   }
 
   onNewestEventsChanged: handleEventModelChange()
-  onScoringModeChanged: scoringDropdown.value = scoringMode
   onFeedFilterChanged: filterDropdown.value = feedFilter
   onOpenedChanged: {
     if (opened) {
@@ -381,7 +372,7 @@ Panel {
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      blocked: scoringDropdown.popupOpen
+      blocked: filterDropdown.popupOpen
       onMoveRequested: function(dx, dy) {
         if (dy !== 0) root.moveSelection(dy)
       }
@@ -392,10 +383,7 @@ Panel {
       onTextKey: function(text) {
         if (text === "v" || text === "V") root.openSelectedHighlight()
         else if (text === "r" || text === "R") root.refreshFeed()
-        else if (text === "d" || text === "D") root.toggleMode()
         else if (text === "o" || text === "O") root.popOut()
-        else if (text === "p" || text === "P")
-          if (root.feedService) root.feedService.toggleScoringMode()
         else if (text === "f" || text === "F")
           if (root.feedService) root.feedService.cycleFeedFilter()
       }
@@ -469,28 +457,6 @@ Panel {
             spacing: Style.space(6)
 
             Dropdown {
-              id: scoringDropdown
-              width: Style.space(86)
-              showLabel: false
-              options: root.feedService && root.feedService.league
-                ? [
-                  {value: "league", label: "LEAGUE"},
-                  {value: "ppr", label: "PPR"},
-                  {value: "standard", label: "STD"}
-                ]
-                : [
-                  {value: "ppr", label: "PPR"},
-                  {value: "standard", label: "STD"}
-                ]
-              value: root.scoringMode
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-              onChanged: function(value) {
-                if (root.feedService) root.feedService.setScoringMode(value)
-              }
-            }
-
-            Dropdown {
               id: filterDropdown
               width: Style.space(64)
               showLabel: false
@@ -503,10 +469,6 @@ Panel {
               value: root.feedFilter
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
-              HoverHandler { id: filterHover }
-              ToolTip.visible: filterHover.hovered && !filterDropdown.popupOpen
-              ToolTip.text: "Plays shown in the feed: all, worth 3+ or 6+ points to someone "
-                + "in the selected scoring, or touchdowns (f). Bar, rail and totals still count every play."
               onChanged: function(value) {
                 if (root.feedService) root.feedService.setFeedFilter(value)
               }
@@ -514,7 +476,6 @@ Panel {
 
             Button {
               text: "↗"
-              tooltipText: "Open standalone window (o)"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               fontSize: Style.font.body
@@ -524,25 +485,12 @@ Panel {
 
             Button {
               iconText: "󰑐"
-              tooltipText: "Refresh (r)"
               foreground: root.contentForeground
               fontFamily: root.contentFontFamily
               horizontalPadding: Style.spacing.controlPaddingX
               verticalPadding: Style.spacing.controlPaddingY
               iconSpinning: root.feedService && root.feedService.loading
               onClicked: root.refreshFeed()
-            }
-
-            Button {
-              text: root.feedService && root.feedService.demoMode ? "LIVE" : "DEMO"
-              tooltipText: root.feedService && root.feedService.demoMode
-                ? "Switch to live data (d)"
-                : "Run deterministic demo (d)"
-              foreground: root.contentForeground
-              fontFamily: root.contentFontFamily
-              fontSize: Style.font.caption
-              bordered: true
-              onClicked: root.toggleMode()
             }
           }
         }
@@ -581,7 +529,6 @@ Panel {
         Button {
           visible: !root.followNewest && root.unseenArrivals > 0
           text: String(root.unseenArrivals) + " NEW ↑"
-          tooltipText: "Return to the live edge"
           foreground: root.positivePoints
           fontFamily: root.contentFontFamily
           fontSize: Style.font.caption
@@ -676,7 +623,7 @@ Panel {
             height: eventColumn.implicitHeight + Style.space(12)
             foreground: root.contentForeground
             accent: Color.accent
-            bordered: true
+            bordered: false
             hasCursor: root.cursorActive && root.selectedIndex === index
 
             // Acknowledge a clip launch at once: accent wash, border and a
@@ -698,6 +645,14 @@ Panel {
               border.width: eventCard.opening || eventCard.favoriteSpotlight ? 2 : 0
               border.color: eventCard.opening ? Color.accent : root.positivePoints
               Behavior on color { ColorAnimation { duration: 120 } }
+            }
+
+            PanelSeparator {
+              anchors.bottom: parent.bottom
+              anchors.bottomMargin: -Style.space(2)
+              foreground: root.contentForeground
+              strength: 0.08
+              visible: eventCard.index < root.newestEvents.length - 1
             }
 
             HoverHandler {
@@ -742,11 +697,9 @@ Panel {
                 Text {
                   id: lifecycleLabel
                   anchors.right: parent.right
-                  text: (eventCard.opening
-                      ? "▶ OPENING… · "
-                      : (eventCard.highlight ? "▶ CLIP " + root.feedService.highlightAge(eventCard.fantasyEvent) + " · " : ""))
-                    + (eventCard.favoriteSpotlight ? "★ " : "")
-                    + root.lifecycle(eventCard.fantasyEvent)
+                  text: root.rowTag(eventCard.fantasyEvent, eventCard.opening,
+                    eventCard.highlight, eventCard.favoriteSpotlight)
+                  visible: text !== ""
                   color: eventCard.opening
                     ? Color.accent
                     : (eventCard.fantasyEvent.lifecycle === "voided"
@@ -785,7 +738,7 @@ Panel {
         Text {
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "p scoring · f filter · o pop out · j/k select · Enter/v play clip · r refresh · d demo/live · Esc close"
+          text: "f filter · o pop out · j/k select · Enter/v play clip · r refresh · Esc close"
           color: Qt.darker(root.contentForeground, 1.55)
           font.family: root.contentFontFamily
           font.pixelSize: Style.font.caption

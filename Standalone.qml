@@ -12,15 +12,17 @@ Item {
   property var shell: null
   property var service: null
   property bool closingFromHost: false
+  // Tabs: "feed", "matchup", "leaders". The feed can be narrowed to plays by
+  // favorite/lineup players with the MINE toggle (m).
   property string activeTab: "feed"
+  property bool mineOnly: false
   readonly property string feedFilter: service ? service.feedFilter : "all"
   readonly property int hiddenByFilter: {
     if (!service) return 0
-    var all = activeTab === "favorites" ? service.visibleFavoriteEvents : service.visibleEvents
+    var all = mineOnly ? service.visibleFavoriteEvents : service.visibleEvents
     return all.length - displayedEvents.length
   }
   onFeedFilterChanged: filterDropdown.value = feedFilter
-  readonly property string scoringMode: service ? service.scoringMode : "ppr"
   property string positionFilter: "ALL"
   property bool followNewest: true
   property int unseenArrivals: 0
@@ -37,7 +39,7 @@ Item {
 
   readonly property var displayedEvents: {
     var source = service
-      ? (activeTab === "favorites" ? service.feedFavoriteEvents : service.feedEvents)
+      ? (mineOnly ? service.feedFavoriteEvents : service.feedEvents)
       : []
     var reversed = []
     for (var index = source.length - 1; index >= 0; index--) reversed.push(source[index])
@@ -80,8 +82,13 @@ Item {
     if (payloadJson) {
       try {
         var payload = JSON.parse(String(payloadJson))
-        if (payload && ["feed", "leaders", "favorites", "matchup"].indexOf(payload.tab) !== -1)
+        if (payload && ["feed", "leaders", "matchup"].indexOf(payload.tab) !== -1)
           activeTab = payload.tab
+        else if (payload && payload.tab === "favorites") {
+          activeTab = "feed"
+          mineOnly = true
+        }
+        if (payload && payload.mine === true) mineOnly = true
         if (payload && (payload.playerId || payload.eventToken)) {
           var playerId = String(payload.playerId || "")
           var eventToken = String(payload.eventToken || "")
@@ -146,7 +153,8 @@ Item {
     }
     if (sourceEvent && service && !service.gameEnabled(sourceEvent.gameId))
       service.showGame(sourceEvent.gameId)
-    activeTab = "favorites"
+    activeTab = "feed"
+    mineOnly = true
     Qt.callLater(function() {
       var target = -1
       if (preferredToken) {
@@ -209,12 +217,6 @@ Item {
     var number = Number(value)
     if (!isFinite(number) || Math.abs(number) < 0.005) return Qt.darker(foreground, 1.35)
     return number > 0 ? positivePoints : negativePoints
-  }
-
-  function scoringLabel() {
-    if (scoringMode === "ppr") return "PPR"
-    if (scoringMode === "league") return "LG"
-    return "STD"
   }
 
   function pointsIn(points) {
@@ -310,7 +312,6 @@ Item {
   function stateLabel() {
     if (!service) return "OFFLINE"
     if (service.stale) return "STALE"
-    if (service.demoMode) return "DEMO"
     var state = service.snapshot ? String(service.snapshot.sourceState || "") : ""
     return state ? state.toUpperCase() : "CONNECTING"
   }
@@ -329,9 +330,21 @@ Item {
     if (service) service.toggleFavorite(player)
   }
 
-  onScoringModeChanged: scoringDropdown.value = scoringMode
   onDisplayedEventsChanged: handleDisplayedEventsChange()
   onActiveTabChanged: resetTapeTracking()
+  onMineOnlyChanged: resetTapeTracking()
+
+  // The row's right-hand tag. A normal play carries nothing; only a clip,
+  // a favorite spotlight, or a corrected/voided lifecycle earns text.
+  function rowTag(event, opening, highlight, spotlight) {
+    var parts = []
+    if (opening) parts.push("▶ OPENING…")
+    else if (highlight) parts.push("▶ CLIP " + service.highlightAge(event))
+    if (spotlight) parts.push("★")
+    var lifecycle = event ? String(event.lifecycle || "current") : "current"
+    if (lifecycle !== "current") parts.push(lifecycle.toUpperCase())
+    return parts.join(" · ")
+  }
 
   FloatingWindow {
     id: window
@@ -357,14 +370,11 @@ Item {
         } else if (event.key === Qt.Key_1) {
           root.activeTab = "feed"; event.accepted = true
         } else if (event.key === Qt.Key_2) {
-          root.activeTab = "leaders"; event.accepted = true
-        } else if (event.key === Qt.Key_3) {
-          root.activeTab = "favorites"; event.accepted = true
-        } else if (event.key === Qt.Key_4) {
           root.activeTab = "matchup"; event.accepted = true
-        } else if (event.key === Qt.Key_P) {
-          if (root.service) root.service.toggleScoringMode()
-          event.accepted = true
+        } else if (event.key === Qt.Key_3) {
+          root.activeTab = "leaders"; event.accepted = true
+        } else if (event.key === Qt.Key_M && !leaderboardSearch.activeFocus) {
+          root.activeTab = "feed"; root.mineOnly = !root.mineOnly; event.accepted = true
         } else if (event.key === Qt.Key_F && !leaderboardSearch.activeFocus) {
           if (root.service) root.service.cycleFeedFilter()
           event.accepted = true
@@ -426,28 +436,6 @@ Item {
             spacing: Style.space(6)
 
             Dropdown {
-              id: scoringDropdown
-              width: Style.space(86)
-              showLabel: false
-              options: root.service && root.service.league
-                ? [
-                  {value: "league", label: "LEAGUE"},
-                  {value: "ppr", label: "PPR"},
-                  {value: "standard", label: "STD"}
-                ]
-                : [
-                  {value: "ppr", label: "PPR"},
-                  {value: "standard", label: "STD"}
-                ]
-              value: root.scoringMode
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              onChanged: function(value) {
-                if (root.service) root.service.setScoringMode(value)
-              }
-            }
-
-            Dropdown {
               id: filterDropdown
               width: Style.space(64)
               showLabel: false
@@ -460,10 +448,6 @@ Item {
               value: root.feedFilter
               foreground: root.foreground
               fontFamily: root.fontFamily
-              HoverHandler { id: filterHover }
-              ToolTip.visible: filterHover.hovered && !filterDropdown.popupOpen
-              ToolTip.text: "Plays shown in the feed and favorites tabs: all, worth 3+ or 6+ points "
-                + "to someone in the selected scoring, or touchdowns (f). Leaderboard, matchup and totals still count every play."
               onChanged: function(value) {
                 if (root.service) root.service.setFeedFilter(value)
               }
@@ -471,20 +455,10 @@ Item {
 
             Button {
               iconText: "󰑐"
-              tooltipText: "Refresh now (r); automatic refresh stays enabled"
               foreground: root.foreground
               fontFamily: root.fontFamily
               iconSpinning: root.service && root.service.loading
               onClicked: if (root.service) root.service.refresh()
-            }
-            Button {
-              text: root.service && root.service.demoMode ? "LIVE" : "DEMO"
-              tooltipText: "Toggle deterministic replay/live data"
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              fontSize: Style.font.caption
-              bordered: true
-              onClicked: if (root.service) root.service.selectMode(!root.service.demoMode)
             }
           }
         }
@@ -494,9 +468,8 @@ Item {
           Repeater {
             model: [
               {key: "feed", label: "FEED"},
-              {key: "leaders", label: "LEADERBOARD"},
-              {key: "favorites", label: "★ FAVORITES"},
-              {key: "matchup", label: "⚔ MATCHUP"}
+              {key: "matchup", label: "⚔ MATCHUP"},
+              {key: "leaders", label: "LEADERS"}
             ]
             delegate: Button {
               required property var modelData
@@ -508,6 +481,19 @@ Item {
               active: root.activeTab === modelData.key
               onClicked: root.activeTab = modelData.key
             }
+          }
+
+          Item { width: Style.space(6); height: 1 }
+
+          Button {
+            visible: root.activeTab === "feed"
+            text: "★ MINE"
+            foreground: root.mineOnly ? root.positivePoints : root.foreground
+            fontFamily: root.fontFamily
+            fontSize: Style.font.caption
+            bordered: true
+            active: root.mineOnly
+            onClicked: root.mineOnly = !root.mineOnly
           }
         }
 
@@ -566,7 +552,6 @@ Item {
           Button {
             visible: root.playerSearch !== ""
             text: "×"
-            tooltipText: "Clear player search"
             foreground: root.foreground
             fontFamily: root.fontFamily
             fontSize: Style.font.bodySmall
@@ -591,10 +576,10 @@ Item {
               ? root.hiddenByFilter + (root.hiddenByFilter === 1 ? " play is" : " plays are")
                 + " hidden by the " + root.service.feedFilterLabel()
                 + " filter. Set it to ALL (f) to see everything."
-              : (root.activeTab === "favorites"
+              : (root.mineOnly
               ? (root.service && root.service.favoriteCount > 0
-                ? "No plays for your favorite players yet."
-                : "Favorite a player from the leaderboard to build a custom feed.")
+                ? "No plays by your players yet."
+                : "Favorite a player from the leaderboard, or sync a league, to narrow the feed.")
               : (root.service && root.service.games.length > 0
                   && root.service.enabledGameCount === 0
                 ? "No games selected. Click one or more matchups above to add them back."
@@ -633,6 +618,7 @@ Item {
             delegate: Rectangle {
               id: eventCard
               required property var modelData
+              required property int index
               readonly property var eventData: modelData
               readonly property bool favoriteSpotlight: root.service
                 ? root.service.isSpotlightEvent(eventData) : false
@@ -647,13 +633,18 @@ Item {
                 : (favoriteSpotlight
                   ? Qt.rgba(root.positivePoints.r, root.positivePoints.g, root.positivePoints.b, 0.08)
                   : "transparent")
-              border.width: opening || favoriteSpotlight ? 2 : 1
-              border.color: opening
-                ? Color.accent
-                : (favoriteSpotlight
-                  ? root.positivePoints
-                  : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35))
+              radius: Style.cornerRadius
+              border.width: opening || favoriteSpotlight ? 2 : 0
+              border.color: opening ? Color.accent : root.positivePoints
               Behavior on color { ColorAnimation { duration: 120 } }
+
+              PanelSeparator {
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: -Style.space(2)
+                foreground: root.foreground
+                strength: 0.08
+                visible: eventCard.index < root.displayedEvents.length - 1
+              }
 
               // Acknowledge a clip launch at once, before mpv has a window.
               onOpeningChanged: if (opening) openingPulse.restart()
@@ -663,14 +654,10 @@ Item {
                 NumberAnimation { target: eventCard; property: "scale"; to: 1; duration: 160 }
               }
 
-              HoverHandler { id: cardHover }
               TapHandler {
                 enabled: eventCard.highlight !== null
                 onTapped: if (root.service) root.service.openHighlight(eventCard.eventData)
               }
-              ToolTip.visible: cardHover.hovered && eventCard.highlight !== null
-              ToolTip.text: eventCard.highlight
-                ? "▶ " + String(eventCard.highlight.title || "") + "\nClick to play in mpv" : ""
 
               Column {
                 id: eventColumn
@@ -698,14 +685,13 @@ Item {
                   Text {
                     id: lifecycleText
                     anchors.right: parent.right
-                    text: (eventCard.opening
-                        ? "▶ OPENING… · "
-                        : (eventCard.highlight ? "▶ CLIP " + root.service.highlightAge(eventCard.eventData) + " · " : ""))
-                      + (eventCard.favoriteSpotlight ? "★ " : "")
-                      + String(eventCard.eventData.lifecycle || "current").toUpperCase()
+                    text: root.rowTag(eventCard.eventData, eventCard.opening,
+                      eventCard.highlight, eventCard.favoriteSpotlight)
+                    visible: text !== ""
                     color: eventCard.opening
                       ? Color.accent
-                      : (eventCard.eventData.lifecycle === "voided" ? root.negativePoints : Qt.darker(root.foreground, 1.35))
+                      : (eventCard.eventData.lifecycle === "voided" ? root.negativePoints
+                        : (eventCard.eventData.lifecycle === "corrected" ? Color.accent : Qt.darker(root.foreground, 1.35)))
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: true
@@ -743,7 +729,6 @@ Item {
             visible: root.activeTab !== "leaders" && root.activeTab !== "matchup"
               && !root.followNewest && root.unseenArrivals > 0
             text: String(root.unseenArrivals) + " NEW ↑"
-            tooltipText: "Return to the live edge"
             foreground: root.positivePoints
             fontFamily: root.fontFamily
             fontSize: Style.font.caption
@@ -800,7 +785,7 @@ Item {
                 }
                 Text {
                   anchors.verticalCenter: parent.verticalCenter
-                  text: root.scoringLabel()
+                  text: "VS"
                   color: Qt.darker(root.foreground, 1.45)
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
@@ -921,6 +906,7 @@ Item {
                       Text {
                         width: parent.width
                         text: String(matchupRow.player.team || "")
+                          + (matchupRow.player.pointsSource === "espn" ? " · ESPN" : "")
                           + (matchupRow.player.redZone ? " · RED ZONE " + String(matchupRow.player.redZoneDetail || "") : "")
                           + (matchupRow.player.latestEvent ? " · last " + root.signedPoints(matchupRow.latestPoints) : "")
                         color: matchupRow.player.redZone ? "#ffb347" : Qt.darker(root.foreground, 1.35)
@@ -929,18 +915,31 @@ Item {
                         elide: Text.ElideRight
                       }
                     }
-                    Text {
+                    // Actual on top, ESPN's projection underneath.
+                    Column {
                       id: matchupPoints
                       anchors.right: parent.right
                       anchors.rightMargin: Style.space(10)
                       anchors.verticalCenter: parent.verticalCenter
-                      text: matchupRow.weeklyPoints.toFixed(1)
-                      color: matchupRow.weeklyPoints === 0
-                        ? Qt.darker(root.foreground, 1.35)
-                        : (sideList.opponent ? root.negativePoints : root.positivePoints)
-                      font.family: root.fontFamily
-                      font.pixelSize: Style.font.body
-                      font.bold: true
+                      spacing: 0
+                      Text {
+                        anchors.right: parent.right
+                        text: matchupRow.weeklyPoints.toFixed(1)
+                        color: matchupRow.weeklyPoints === 0
+                          ? Qt.darker(root.foreground, 1.35)
+                          : (sideList.opponent ? root.negativePoints : root.positivePoints)
+                        font.family: root.fontFamily
+                        font.pixelSize: Style.font.body
+                        font.bold: true
+                      }
+                      Text {
+                        anchors.right: parent.right
+                        visible: matchupRow.player.projected !== null && matchupRow.player.projected !== undefined
+                        text: "PROJ " + Number(matchupRow.player.projected || 0).toFixed(1)
+                        color: Qt.darker(root.foreground, 1.5)
+                        font.family: root.fontFamily
+                        font.pixelSize: Style.font.caption
+                      }
                     }
                   }
                 }
@@ -1032,7 +1031,7 @@ Item {
                 anchors.right: favoriteButton.left
                 anchors.rightMargin: Style.space(10)
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.signedPoints(leaderRow.selectedPoints) + " " + root.scoringLabel()
+                text: root.signedPoints(leaderRow.selectedPoints)
                 color: root.pointsColor(leaderRow.selectedPoints)
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.body
@@ -1044,7 +1043,6 @@ Item {
                 anchors.rightMargin: Style.space(8)
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.isFavorite(leaderRow.player.playerId) ? "★" : "☆"
-                tooltipText: root.isFavorite(leaderRow.player.playerId) ? "Remove favorite" : "Favorite player"
                 foreground: root.isFavorite(leaderRow.player.playerId) ? root.positivePoints : root.foreground
                 fontFamily: root.fontFamily
                 fontSize: Style.font.bodySmall
@@ -1058,7 +1056,7 @@ Item {
           id: footer
           width: parent.width
           horizontalAlignment: Text.AlignHCenter
-          text: "Click games to filter · / search players · 1 feed · 2 leaderboard · 3 favorites · 4 matchup · p scoring · f points filter · r refresh · Esc close"
+          text: "Click games to filter · 1 feed · 2 matchup · 3 leaders · m mine · / search · f points filter · r refresh · Esc close"
           color: Qt.darker(root.foreground, 1.55)
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

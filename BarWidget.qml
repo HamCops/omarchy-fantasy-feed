@@ -20,7 +20,6 @@ BarWidget {
     if (!feedService) return "UNAVAILABLE"
     if (feedLoading && !feedService.snapshot) return "LOADING"
     if (feedStale) return "STALE"
-    if (feedService.demoMode) return "DEMO"
     var state = feedService.snapshot ? String(feedService.snapshot.sourceState || "") : ""
     if (state === "live") return "LIVE"
     if (state === "scheduled") return "SCHEDULED"
@@ -29,42 +28,18 @@ BarWidget {
   }
 
   // With a matchup synced the score is the message; the status word only
-  // earns bar space when it says something (live, stale, demo).
+  // earns bar space when it says something (live, stale).
   function barLabel() {
     var status = statusLabel()
     if (feedService && feedService.favoriteSpotlightActive)
       return status + " · ★ " + feedService.favoriteBarLabel()
     if (feedService && feedService.hasMatchup) {
       var score = feedService.matchupBarLabel()
-      return ["LIVE", "STALE", "DEMO"].indexOf(status) !== -1 ? status + " · " + score : score
+      return ["LIVE", "STALE"].indexOf(status) !== -1 ? status + " · " + score : score
     }
     if (feedService && feedService.favoriteCount > 0)
       return status + " · ★" + feedService.favoriteCount
     return status
-  }
-
-  function tooltip() {
-    var status = feedService && feedService.favoriteSpotlightActive
-      ? "Favorite-player play"
-      : (feedStale ? "Stale fantasy feed" : (feedLoading ? "Refreshing fantasy feed" : "Fantasy feed"))
-    if (feedService && feedService.hasMatchup && feedService.league) {
-      var league = feedService.league
-      status += "\n" + String(league.name || "") + " · week " + String(league.week || "")
-        + " · " + String(league.me ? league.me.name : "me") + " vs "
-        + String(league.opponent ? league.opponent.name : "?")
-      if (feedService.liveMatchupFresh && feedService.liveMatchup) {
-        var live = feedService.liveMatchup
-        status += "\nESPN: " + Number(live.me.points).toFixed(1) + " – "
-          + Number(live.opponent.points).toFixed(1)
-          + " · projected " + Number(live.me.projected).toFixed(1) + " – "
-          + Number(live.opponent.projected).toFixed(1)
-        if (live.winProbability !== null && live.winProbability !== undefined)
-          status += " · win " + Math.round(Number(live.winProbability) * 100) + "%"
-      }
-    }
-    var play = latestEvent ? String(latestEvent.rawText || "") : ""
-    var message = status + "\nLeft click: open feed · Middle click: refresh"
-    return play ? message + "\n" + play : message
   }
 
   function injectPanel() {
@@ -121,15 +96,15 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
+    // Text only: the matchup line (or status) is the whole capsule. A
+    // vertical bar has no room for it and shows a two-letter mark instead.
     text: {
-      var glyph = root.feedLoading ? "󰦖" : "🏈"
-      if (root.vertical) return glyph
-      return glyph + "  " + root.barLabel()
+      if (root.vertical) return root.feedLoading ? "󰦖" : "FF"
+      return (root.feedLoading ? "󰦖  " : "") + root.barLabel()
     }
     fontSize: Style.font.body
     active: root.feedStale || (root.feedService && root.feedService.favoriteSpotlightActive)
     dimmed: !root.feedService || (!root.latestEvent && !root.feedLoading)
-    tooltipText: root.tooltip()
 
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.MiddleButton) {
