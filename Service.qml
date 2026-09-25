@@ -710,6 +710,26 @@ Item {
     favoriteSpotlightEvent = null
   }
 
+  function highlightKey(event) {
+    var highlight = eventHighlight(event)
+    return highlight ? String(highlight.id || highlight.url) : ""
+  }
+
+  // Same play, same revision, different clip: swap in the incoming copy.
+  // Returns the new list, or null when nothing changed.
+  function refreshHighlights(list, incomingByIdentity) {
+    var next = null
+    for (var index = 0; index < list.length; index++) {
+      var current = list[index]
+      var incoming = incomingByIdentity["$" + eventIdentity(current)]
+      if (!incoming || eventToken(incoming) !== eventToken(current)) continue
+      if (highlightKey(incoming) === highlightKey(current)) continue
+      if (!next) next = list.slice()
+      next[index] = incoming
+    }
+    return next
+  }
+
   function stagePresentation(value) {
     var nextEvents = value && Array.isArray(value.events) ? value.events : []
     var context = presentationContextFor(value)
@@ -717,6 +737,19 @@ Item {
       resetPresentation(nextEvents, context)
       return
     }
+
+    // A clip attaches minutes after the play without a new revision, so a
+    // row already on screen (or queued) must take the clip in place; the
+    // token check below would otherwise skip the play as already known.
+    var incomingByIdentity = ({})
+    for (var incomingIndex = 0; incomingIndex < nextEvents.length; incomingIndex++) {
+      var incomingIdentity = eventIdentity(nextEvents[incomingIndex])
+      if (incomingIdentity) incomingByIdentity["$" + incomingIdentity] = nextEvents[incomingIndex]
+    }
+    var refreshedPresented = refreshHighlights(presentedEvents, incomingByIdentity)
+    if (refreshedPresented) presentedEvents = refreshedPresented
+    var refreshedQueue = refreshHighlights(_arrivalQueue, incomingByIdentity)
+    if (refreshedQueue) _arrivalQueue = refreshedQueue
 
     var known = ({})
     for (var presentedIndex = 0; presentedIndex < presentedEvents.length; presentedIndex++) {

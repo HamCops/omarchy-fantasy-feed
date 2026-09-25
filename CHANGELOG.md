@@ -4,6 +4,10 @@ All notable changes to Fantasy Feed are documented here.
 
 ## [Unreleased]
 
+- Feed rows pick up a clip that lands after the play. A highlight attaches
+  without a new play revision, so the presentation queue treated the play
+  as already shown and only the notification carried the clip; presented
+  and queued rows now take the clip in place.
 - The league sync is part of the plugin: `scripts/league_sync.py` replaces
   espn-mcp's `feed_sync.py`, standard library only, with its own credentials
   file at `~/.config/fantasy-feed/espn.json` (`--init` writes the template,
